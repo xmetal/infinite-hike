@@ -40,13 +40,12 @@ alpine stretch. Detail (Low / Medium / High) is in the menu too. Medium is the d
 The renderer skips tree, grass and rock groups that cannot reach the screen or the shadow map (off to the side,
 behind you, or outside the distance range of their level of detail), so the picture is identical with far fewer
 triangles. Press H for stats: triangles per frame and, where the browser allows, GPU time per frame. Press O to
-switch the skipping off and on to compare in place. `index-fast.html` was the trial of this and is now an
-identical copy of `index.html`.
+switch the skipping off and on to compare in place.
 
 ## Edit it
 
 Source is in `src/` (`world.js` is the place to start: trail shape, biomes, what grows where).
-`node build.mjs` joins the files into `index.html` (and the identical `index-fast.html`). No dependencies.
+`node build.mjs` joins the files into `index.html`. No dependencies.
 
 | File | What |
 |---|---|
