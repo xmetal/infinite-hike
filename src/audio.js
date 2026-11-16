@@ -110,6 +110,10 @@ function audioStart() {
   if (!AC) { try { AC = new AudioContext({ latencyHint: 'playback' }); setInterval(mkSound(AC), 100); } catch (e) { console.warn('audio unavailable', e); AC = null; return; } }
   if (AC.state === 'suspended') AC.resume();
 }
-function audioStep(pace) { if (STEP && !muted) STEP(pace); }
-function audioMute() { if (!AC) return; muted = !muted; OUT.gain.setTargetAtTime(muted ? 0 : VOL, AC.currentTime, 0.08); toast(muted ? 'Sound off' : 'Sound on'); }
+function audioStep(pace) { if (STEP && !muted && !quiet) STEP(pace); }
+// everything goes silent while muted or while the menu is up
+let quiet = false;
+const setLevel = () => { if (AC) { OUT.gain.cancelScheduledValues(AC.currentTime); OUT.gain.setTargetAtTime(muted || quiet ? 0 : VOL, AC.currentTime, 0.08); } };
+function audioMute() { if (!AC) return; muted = !muted; setLevel(); toast(muted ? 'Sound off' : 'Sound on'); }
+function audioQuiet(q) { quiet = q; setLevel(); }
 document.addEventListener('visibilitychange', () => { if (AC) document.hidden ? AC.suspend() : AC.resume(); });

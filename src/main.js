@@ -456,7 +456,7 @@ const setKey = (code, v) => {
   else return false;
   return true;
 };
-function openMenu(open) { paused = open; $('menu').classList.toggle('on', open); canvas.classList.toggle('blur', open); if (open) { keys.f = keys.b = keys.run = keys.l = keys.r = 0; } $('go').textContent = started ? 'Keep walking' : 'Start hiking'; }
+function openMenu(open) { paused = open; audioQuiet(open); $('menu').classList.toggle('on', open); canvas.classList.toggle('blur', open); if (open) { keys.f = keys.b = keys.run = keys.l = keys.r = 0; } $('go').textContent = started ? 'Keep walking' : 'Start hiking'; }
 function start() { started = true; openMenu(false); audioStart(); }
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
