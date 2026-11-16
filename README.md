@@ -35,17 +35,18 @@ alpine stretch. Detail (Low / Medium / High) is in the menu too. Medium is the d
 - **Sound**: all synthesized with Web Audio: wind, leaf rustle, six kinds of birdsong, a woodpecker, meadow
   insects, a hawk in the mountains, and footsteps that change with the ground.
 
-## index-fast.html
+## Drawing less
 
-The same hike, drawn with less work. It skips tree, grass and rock groups that cannot reach the screen or the
-shadow map (off to the side, behind you, or outside the distance range of their level of detail), so the picture
-is identical. Press H for stats: it adds triangles per frame and, where the browser allows, GPU time per frame.
-Press O to switch the culling off and on to compare in place.
+The renderer skips tree, grass and rock groups that cannot reach the screen or the shadow map (off to the side,
+behind you, or outside the distance range of their level of detail), so the picture is identical with far fewer
+triangles. Press H for stats: triangles per frame and, where the browser allows, GPU time per frame. Press O to
+switch the skipping off and on to compare in place. `index-fast.html` was the trial of this and is now an
+identical copy of `index.html`.
 
 ## Edit it
 
 Source is in `src/` (`world.js` is the place to start: trail shape, biomes, what grows where).
-`node build.mjs` joins the files into `index.html` and `index-fast.html`. No dependencies.
+`node build.mjs` joins the files into `index.html` (and the identical `index-fast.html`). No dependencies.
 
 | File | What |
 |---|---|

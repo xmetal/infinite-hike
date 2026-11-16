@@ -29,18 +29,20 @@ function mkSound(ac) {
   src(nbrown, 1, BQ('lowpass', 420, 0.5, Gn(7, gust)));
   const wf = BQ('bandpass', 620, 1.1, Gn(2.2, gust)); src(nbrown, 0.737, wf);
   lfo(0.11, 0.06, gust.gain);
-  // leaves: bright hiss that swells with the same gusts
-  const leaf = Gn(0, out), lg = Gn(0.5, leaf);
-  src(nwhite, 1, BQ('highpass', 2400, 0.6, BQ('lowpass', 9000, 0.5, Gn(0.16, lg))));
-  src(nwhite, 0.83, BQ('bandpass', 5200, 1.5, Gn(0.12, lg)));
-  lfo(0.27, 0.1, lg.gain);
-  // meadow insects: a pulsed high tone (crickets) and a thin shimmer
-  const bug = Gn(0, out), bp = Gn(0, bug);
-  N(OscillatorNode, { frequency: 4350 }, bp); N(OscillatorNode, { frequency: 4480 }, Gn(0.6, bp));
-  N(OscillatorNode, { frequency: 31, type: 'square' }, Gn(0.5, bp.gain)); N(ConstantSourceNode, { offset: 0.5 }, bp.gain);
-  const shim = Gn(0.05, bug); src(nwhite, 1.3, BQ('bandpass', 7800, 9, shim)); lfo(0.4, 0.03, shim.gain);
-  const bugEnv = Gn(1, out); bug.disconnect(); bug.connect(bugEnv); lfo(0.19, 0.35, bugEnv.gain);
-
+  // leaves: a soft, breathy rustle rather than a hiss. It uses the wind's own dark noise, played faster so it sits
+  // around 1-3 kHz, with the top rounded off; it stays well under the wind and swells with the same gusts.
+  const leaf = Gn(0, out), lg = Gn(0.3, leaf);
+  src(nbrown, 3.1, BQ('bandpass', 1700, 0.6, BQ('lowpass', 3200, 0.5, Gn(2, lg))));
+  src(nbrown, 4.3, BQ('bandpass', 2600, 0.9, Gn(1.2, lg)));
+  // meadow insects: a few crickets, each with its own pitch, place and loudness. Nothing here runs on a cycle: the
+  // timer below gives each one bouts of chirps (2-4 quick pulses each) with uneven gaps, then a rest of random length.
+  const bug = Gn(0, out);
+  const crickets = Array.from({ length: 4 }, (_, k) => {
+    const p = N(StereoPannerNode, { pan: rr(-0.9, 0.9) }, bug), g = Gn(0, p), f = rr(3900, 4900);
+    N(OscillatorNode, { frequency: f }, g); N(OscillatorNode, { frequency: f * 1.031 }, Gn(0.5, g));
+    return { g, next: 0, left: 0, vol: 0, rate: 0, pulses: 3, first: 1 + k * 2.5 };
+  });
+  const shim = Gn(0.05, bug); src(nwhite, 1.3, BQ('bandpass', 7800, 9, shim));
   // pooled voices for bird calls: oscillator -> envelope -> pan -> dry + reverb
   const pool = (n, type) => Array.from({ length: n }, () => { const p = N(StereoPannerNode, {}, out, wet), g = Gn(0, p); return { p, g, o: N(OscillatorNode, { type }, g) }; });
   const birds = pool(5, 'sine'), harsh = pool(2, 'sawtooth');
@@ -71,7 +73,7 @@ function mkSound(ac) {
   };
   // woodpecker: a quick run of knocks
   const knockG = Gn(0, N(StereoPannerNode, { pan: -0.4 }, out, wet)); src(nwhite, 0.9, BQ('bandpass', 1150, 5, knockG));
-  let tGust = 0, lt = ac.currentTime, tBird = lt + 1.5, tBird2 = lt + 4, tPeck = lt + rr(15, 40), tHawk = lt + rr(10, 30);
+  let tGust = 0, lt = ac.currentTime, tBird = lt + 2, tBird2 = lt + rr(8, 20), tPeck = lt + rr(40, 120), tHawk = lt + rr(40, 120);
   out.gain.setTargetAtTime(VOL, lt, 0.8);
   return () => {
     const now = ac.currentTime, t = now + 0.06; if (now <= lt) return; lt = now;
@@ -83,14 +85,25 @@ function mkSound(ac) {
       wf.frequency.setTargetAtTime(rr(380, 700) + 380 * lvl, t, tc * 1.5); wf.Q.setTargetAtTime(rr(0.7, 1.8), t, 3);
       tGust = t + rr(2.5, 11);
     }
-    leaf.gain.setTargetAtTime(0.75 * F + 0.12 * M + 0.04 * A, t, 1.5);
-    bugEnv.gain.setTargetAtTime(0.55 * M * M, t, 2);
-    bug.gain.setTargetAtTime(0.016, t, 1);
+    leaf.gain.setTargetAtTime(0.17 * F + 0.05 * M + 0.02 * A, t, 1.5); // a quiet background rustle
+    bug.gain.setTargetAtTime(0.6 * M * M, t, 2);
+    if (M > 0.05) for (const c of crickets) {
+      if (!c.next) c.next = t + c.first;
+      if (t < c.next) continue;
+      if (c.left <= 0) { // start a new bout: how many chirps, how loud, how fast, how many pulses per chirp
+        c.left = 3 + (rnd() * 14 | 0); c.vol = rr(0.006, 0.02); c.rate = rr(0.028, 0.04); c.pulses = 2 + (rnd() * 3 | 0);
+      }
+      const g = c.g.gain;
+      for (let k = 0; k < c.pulses; k++) { const tt = t + k * c.rate * rr(0.94, 1.06); g.setValueAtTime(0, tt); g.linearRampToValueAtTime(c.vol * rr(0.7, 1), tt + 0.004); g.linearRampToValueAtTime(0, tt + c.rate * 0.6); }
+      c.left--;
+      c.next = t + c.pulses * c.rate + (c.left > 0 ? rr(0.25, 0.75) : rr(8, 48)); // a short gap, or a long rest after the bout
+    }
+    // animal sounds are occasional details, not a constant chorus: long, uneven gaps between them
     const life = F + 0.7 * M + 0.12 * A; // how much birdsong
-    if (t > tBird) { if (rnd() < life) { const d = rr(0.35, 1); const l = SONGS[(rnd() * (F > 0.4 ? 6 : 4)) | 0](t, take(birds, rr(-0.8, 0.8)), d); tBird = t + l + rr(0.4, 3.5) / max(life, 0.2); } else tBird = t + rr(1, 4); }
-    if (t > tBird2) { if (rnd() < life) { const d = rr(0.2, 0.6); SONGS[(rnd() * 4) | 0](t, take(birds, rr(-0.9, 0.9)), d); } tBird2 = t + rr(3, 9); }
-    if (t > tPeck) { if (F > 0.5) { const g = knockG.gain, n = 9 + (rnd() * 8 | 0); for (let k = 0; k < n; k++) { const tt = t + k * 0.047; g.setValueAtTime(0.5 * (1 - k / n * 0.5), tt); g.exponentialRampToValueAtTime(0.001, tt + 0.03); } } tPeck = t + rr(18, 50); }
-    if (t > tHawk) { if (A + M * 0.4 > 0.5) { const v = take(harsh, rr(-0.5, 0.5)); note(v, t, 2700, 1750, 0.95, 0.02, 0.06); } tHawk = t + rr(25, 60); }
+    if (t > tBird) { if (rnd() < life) { const d = rr(0.35, 1); const l = SONGS[(rnd() * (F > 0.4 ? 6 : 4)) | 0](t, take(birds, rr(-0.8, 0.8)), d); tBird = t + l + rr(1.6, 14) / max(life, 0.2); } else tBird = t + rr(4, 16); }
+    if (t > tBird2) { if (rnd() < life) { const d = rr(0.2, 0.6); SONGS[(rnd() * 4) | 0](t, take(birds, rr(-0.9, 0.9)), d); } tBird2 = t + rr(12, 36); }
+    if (t > tPeck) { if (F > 0.5) { const g = knockG.gain, n = 9 + (rnd() * 8 | 0); for (let k = 0; k < n; k++) { const tt = t + k * 0.047; g.setValueAtTime(0.5 * (1 - k / n * 0.5), tt); g.exponentialRampToValueAtTime(0.001, tt + 0.03); } } tPeck = t + rr(72, 200); }
+    if (t > tHawk) { if (A + M * 0.4 > 0.5) { const v = take(harsh, rr(-0.5, 0.5)); note(v, t, 2700, 1750, 0.95, 0.02, 0.06); } tHawk = t + rr(100, 240); }
   };
 }
 function audioStart() {

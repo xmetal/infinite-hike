@@ -7,9 +7,9 @@ const bar = (f) => { $('bar').style.width = (f * 100).toFixed(0) + '%'; };
 const fail = (m) => { $('msg').textContent = m; $('msg').style.display = 'block'; $('load').style.display = 'none'; throw new Error(m); };
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-// FAST is switched on by build.mjs for index-fast.html. It changes nothing that is drawn: it only skips work whose
-// result could not have reached the screen (see drawTrees), and adds GPU time and triangle counts to the stats.
-const FAST = false;
+// FAST changes nothing that is drawn: it only skips work whose result could not have reached the screen (see
+// drawTrees), and adds GPU time and triangle counts to the stats. Set it to false to draw everything the plain way.
+const FAST = true;
 let CULL = FAST && qs.get('cull') !== '0';
 // detail levels: anti-aliasing, pixel budget, plant density, shadow map size, light shaft steps
 const QL = [
@@ -444,6 +444,7 @@ function frame(now) {
     const b = BIO[0] > BIO[1] ? (BIO[0] > BIO[2] ? 0 : 2) : (BIO[1] > BIO[2] ? 1 : 2);
     const s = (walked / 1000).toFixed(2) + ' km  ·  ' + BNAME[b] + (b === 0 && BIO[3] > 0.5 ? ' in autumn' : '') + '  ·  ' + round(240 + elev(Z)) + ' m' + (auto ? '  ·  auto-walk' : '');
     if (s !== hudS) { hudS = s; $('hud').textContent = s; }
+    syncButtons();
     if (statsOn) $('stats').textContent = fps.toFixed(0) + ' fps  ·  ' + W + '×' + H + '  ·  ' + Q.name + '  ·  ' + nvis + ' chunks' + (FAST ? '  ·  ' + (tris / 1e6).toFixed(2) + 'M tris' + (TSQ ? '  ·  GPU ' + gpuMs.toFixed(1) + ' ms' : '') + '  ·  culling ' + (CULL ? 'on' : 'off') + ' (O)' : '');
   }
 }
@@ -479,6 +480,12 @@ canvas.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: fals
 let toastT = 0;
 function toast(s) { const t = $('toast'); t.textContent = s; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); }
 $('go').addEventListener('click', start);
+// the two small corner buttons: sound and auto-walk (they never take keyboard focus, so Space keeps its meaning)
+function syncButtons() { $('bs').classList.toggle('off', muted); $('ba').classList.toggle('on', auto); }
+for (const [id, fn] of [['bs', () => audioMute()], ['ba', () => { if (started && !paused) auto = !auto; }]]) {
+  $(id).addEventListener('pointerdown', (e) => e.preventDefault());
+  $(id).addEventListener('click', () => { fn(); syncButtons(); });
+}
 $('mbtn').addEventListener('click', () => openMenu(true));
 // touch buttons: hold to walk
 for (const [id, key] of [['tf', 'f'], ['tb', 'b']]) {

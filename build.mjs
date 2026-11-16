@@ -6,5 +6,5 @@ const js = ['math', 'world', 'shaders', 'audio', 'main'].map((n) => read(`src/${
 const html = read('template.html').replace('/*JS*/', () => js);
 const out = (name, h) => { writeFileSync(new URL(name, dir), h); console.log(`${name}: ${(h.length / 1024).toFixed(1)} KB`); };
 out('index.html', html);
-// the same hike with exact culling and GPU stats switched on (see FAST in src/main.js)
-out('index-fast.html', html.replace('const FAST = false;', 'const FAST = true;').replace('<title>Infinite Hike</title>', '<title>Infinite Hike (fast)</title>'));
+// index-fast.html was the trial of the culling that is now the default; it is kept as an identical copy for now
+out('index-fast.html', html);
