@@ -25,7 +25,7 @@ function mkSound(ac) {
   // wind: a low body and a wandering whistle band, from one 41 s noise loop played at two unrelated speeds
   // (the pair only lines up again after about half an hour). Gusts are not a cycle: the timer below picks a new
   // random strength and pitch every few seconds and glides there.
-  const wind = Gn(0.05, out), gust = Gn(0.5, wind);
+  const wind = Gn(0.025, out), gust = Gn(0.5, wind);
   src(nbrown, 1, BQ('lowpass', 420, 0.5, Gn(7, gust)));
   const wf = BQ('bandpass', 620, 1.1, Gn(2.2, gust)); src(nbrown, 0.737, wf);
   lfo(0.11, 0.06, gust.gain);
@@ -78,14 +78,14 @@ function mkSound(ac) {
   return () => {
     const now = ac.currentTime, t = now + 0.06; if (now <= lt) return; lt = now;
     const F = BIO[0], M = BIO[1], A = BIO[2];
-    wind.gain.setTargetAtTime(0.5 * (0.075 + 0.04 * M + 0.2 * A + 0.012 * min(abs(spd), 6)), t, 1.5); // wind alone, half of its earlier level
+    wind.gain.setTargetAtTime(0.25 * (0.075 + 0.04 * M + 0.2 * A + 0.012 * min(abs(spd), 6)), t, 1.5); // wind alone, halved twice from its first level
     if (t > tGust) { // next gust or lull: mostly gentle, now and then a strong one; the leaves follow the same swell
       const lvl = 0.2 + 0.8 * pow(rnd(), 1.7), tc = rr(1.2, 4);
       gust.gain.setTargetAtTime(lvl, t, tc); lg.gain.setTargetAtTime(0.2 + 0.75 * lvl, t + rr(0, 0.6), tc);
       wf.frequency.setTargetAtTime(rr(380, 700) + 380 * lvl, t, tc * 1.5); wf.Q.setTargetAtTime(rr(0.7, 1.8), t, 3);
       tGust = t + rr(2.5, 11);
     }
-    leaf.gain.setTargetAtTime(0.17 * F + 0.05 * M + 0.02 * A, t, 1.5); // a quiet background rustle
+    leaf.gain.setTargetAtTime(0.085 * F + 0.025 * M + 0.01 * A, t, 1.5); // a quiet background rustle
     bug.gain.setTargetAtTime(0.6 * M * M, t, 2);
     if (M > 0.05) for (const c of crickets) {
       if (!c.next) c.next = t + c.first;
