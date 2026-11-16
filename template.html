@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Infinite Hike</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0f0a; overflow: hidden; font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif; color: #f1ecdf; -webkit-user-select: none; user-select: none; }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; transition: filter .6s; }
+  #c.blur { filter: blur(7px) brightness(.72) saturate(.9); }
+  #load { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #0b0f0a; transition: opacity .45s; z-index: 5; }
+  #load.off { opacity: 0; pointer-events: none; }
+  #load span { letter-spacing: .32em; text-transform: uppercase; font-size: 13px; opacity: .7; }
+  #track { width: 220px; height: 2px; background: #ffffff22; }
+  #bar { width: 0; height: 100%; background: #d8c98f; transition: width .3s; }
+  #msg { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 420px; text-align: center; line-height: 1.5; z-index: 9; }
+  #menu { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 4; }
+  #menu.on { display: flex; }
+  .panel { text-align: center; padding: 20px 30px; max-width: 520px; text-shadow: 0 1px 14px #000a; }
+  /* Barrio (Omnibus-Type, SIL Open Font License 1.1), cut down to the letters of the title and embedded */
+  @font-face { font-family: 'Barrio'; src: url(data:font/woff;base64,d09GRgABAAAAABDcAA4AAAAAGbAAAQABAAAAAAAAAAAAAAAAAAAAAAAAAABHREVGAAAPDAAAACcAAAAuADsANEdQT1MAAA80AAAAIAAAACBEdkx1R1NVQgAAD1QAAAGGAAADKoLwo0JPUy8yAAANiAAAAEwAAABgXs1hQWNtYXAAAA3UAAAATgAAAGQBZQIXZ2FzcAAADwQAAAAIAAAACAAAABBnbHlmAAABRAAAC00AABHozMtQs2hlYWQAAAzgAAAANgAAADYHXW9laGhlYQAADWgAAAAgAAAAJAZbA4JobXR4AAANGAAAAFAAAABQJoIDu2xvY2EAAAy0AAAAKgAAACoq/CcRbWF4cAAADJQAAAAdAAAAIAAfAWNuYW1lAAAOJAAAAMoAAAF8HkY3anBvc3QAAA7wAAAAEwAAACD/uAAyeJydl/uPJFUVx+8599a99a7q6np013T39FTNVPXM7A6z3V1VIzu7M7vsrruAoAvIY3koGFGyEiCyhoCK0fgI0R/8kR/ER2L8xVfUSIxRxAQTjZoQ+cWfDP4FJighGsbcW70rEN/TPT2Tnprqc879nu/nHAJk7+B1eBF/Rj5KCBE8z4qyyMsizwTPy4xHoeBRFCbxLJ5Nm3o2jWfTKORREspL1ZPnWZmV0XQPp0nSTONIiJAXeVaWmYdZURXVvKiqeV3V1bwsqnkzr2fJdHG7JJnG8vYRvEjBYS7zzhZOPzBGSaUjIOjdThVvjE13IBwEplGLGUc2Dp8UFmog2ODSanR6w9YB3FTfXH6/fbHgHAEpo0hNwzMmw5XDdbCerTo6Ip7oeAwoACAIJ3Am/aORBYBIbebZlSEo6gDvA/VlmeEZXwDI64VppXrX/1xYGFsb81E22LvZMYBqjILtG3HaJUCOE4Tf44/JeUK6zbRuZJJRJMukCsEjIWSNZAkj0b6dh0kiFrUsi1wUxbwq52WpalU2sl5zVfKf7NsjL4tvToTlmPvF6hGKAJG5PXH7vgWGG9iTu1RWlq0FxuCcpcm4qUzNMLhj4PcRgYI3NSgAo0Hs3D7rySR1Y0XnAKm9d2TcueSYCADcwso1T3nLIhk+cnKrt3M+sJEQIPuE4CP4C3I3IZDI85s2VTlvZKbxbJrEkeBccB6FHoaJTIrnWdUU9TEUPM+zUkpJyLOW8igEL+qKdpUYFreI1f8CXdvu3rB+JAWGYFrMsjUTgTHKmFSEAWaqA8C7Ns/dXUSAoKHXofnhjpDZmrEWaHaqu5Ym/wU+CwgwaopLZwwApEIX5WT00u7GB05OPJdzQPOLfu5uXIsAHWM8vHhj36auANQwXDXgDqChJe8Ajku3zt13lAA5dPAauYQ/J6uEBEKmFMYqJdk7WVHt4byp67Kcy+MPefQwMhm3pvE+6zBAZDItf81E/PSFwSMP9q7+bofrglPG+PiTL44e6D9sRim4msMJQbJ08Bp5mp4lFqkICWTPVUoSERehCIX4Jx9eKeFcCeDpzSQpsmRpcxMpwptCkU9oY3llNU/jtWH/axd2dwZbe28OajK8unvG7jj0cmBAjh38Da/BH5FHCQmSadzMpvGQymokSVM3dftUj2ktI2ylIbgQRRIvHvL9XEjDUY9S6UZmk+dCmUo1b+qyKCp5r9Y76taCPmbqscd1TQrC13r2fqDv9n3vKDMt2uVCw23HfK+RrtXaZNA3p/vCPBTSzifsjim2Vt0gXwXZDkJMeqltomDIpI5kw1AEUzM1/KFsBL42Wn90HDsrWYf3rNOhdbIfeCeEp7qEaXjEMi45w3JHbGd9c/c6blQ9xnSqm3z3iOdvro+c/dNrFmWCAgKntujzwGz+1Fk6Vxh6NjpqmFT21dGDV/B+fIlcJKQ7jZN4GWP1WpbSLMuymcvumspTD3nkoTrzeZJEoTQN5dhXaqiKmiSh/CtXZRQik39WvtvIOrYlfDmOuOmtXeVsGB1tsIwMAZineUbIdU32GQKl2KXGkAuhU1NsduPbw/6QAlJANI046g2CmSdbExjVbIqp7jL8nWFFK++8f3BnkOvNsavvHTU7G+n17/EoMo2Z/N2/HGY7weaQPb6DIQJwV6T+xXLjF+tb83uOnozO33RDNMnR5NJ2LZcGaa8zf2r09q9HN5ZLyoVCQtDCn5K3EUJ4FCahVEsUxpHMOMvzrJgvOkClrlIuZdPMFi7T1HGEFqX5d2SSmo6nbMY4wtlrlx1TnpRh3Lczj3bPro+MOMCvbCwPtpfu75w686ntdc1geqQ98dWtdF4huEb/6iM9TVhM1Qs8gwApCcIf8YfkKUIglIDMW/uX0lYgvQK+RTjNNBZcNsgCu1melaK9XtJBkvfydQsJLHihEC0ZrPItFnStVatIxczU57S+Ci8z7llffoKXiWp7I5jwIO3q27E+cldS02JccEkEZk6uS26Z+IXWNSgqg3D60aG6k0fZRm+s6xRNyxJL56dxp7zLj11DAVQDpHSsB76+d2pt84b+wOaAX0goUFzyxn7asya+IS8EWWEwmIh0XXYGgh+4tu/bH5kaPiiIITeFZwhNkRqE7jONJsujUzvz+IPRRufDaz1EqVfbQQJkjwD8Gp8ltxISNE2i8o1EskBvUeSyBeQMI8SsWcwwUVvuMs+EGnAkrHJJX2mhqopN+61a5fPb9YemXmoJAM30h97IeiDoRYAYT872s1S3dQ24mNxV9V1pH85pg6kaU/kqhOiYir8AXHQeneq6JhsIub1i+w4gcu74QirovWcPp/2jFgMz4P7yzR/cHyarySi/w0xXmcllrscP/oqn8VfkEUJgoaI9WtdN+/sIE8UjlVDSUlaJJM+qubSAosqFKJW6pLx4lhdFLrjgVdPMm0bqRxmEmtBipZ/ZNIpluQSUUcAdVySUIgK3zC09Gkdy0KCMc2S6ibrN4sFxdGXiw80g9Ax5reVRvbCH4nCiQEoBOOXccTbCLcsFXaoHvokAONq+9x2eCRwoarbmF2dS58z1yQsP9dHSpHKM7kNpseotS1Hs5Tuz2rI1+VGULpdn4+6HJ1aydszrDW47rXNFNguvm43rLQJk9eBV8jw+T2aEBKonWmbKQsVRiyf5I+ZlzouyaF2y2qOVdN4H+kZs2iaCBa0+5VfHveDpgIwJjogYahSfk/OU0GztljvS+jHPn8z7Xca6jR04AsDriNEgFE/ebdx7oV7dKEHSXcWl6L73Frr/z1E+fxnzt/2X4V4m/vn/MWwg04NXscSfkg8oXknrlWFKSUnA1C3/j+NsWjdqWbjM/nZUktxXryEvheALdl2FCls8y8tS2nZVKjtrJPvi2QsmBwYcXHOtdzKAgI4ptWxqxQYLDPB24+Qm01zvCmPuRbu99JiGjhjP+i5NrFFpecsFRd3AcOXQikIxgMktDb8nBIt6xoa70zm55Hne9vKdKSSsNA3ZjYIZ0Dk3WHnItk8xLRBW4yWnot4JjTHFR5vG9ri07MH45nh42FTzlO79+e6PxHZ68kZDkX3/4DWM8Q/kNkKIbCq5FsSLlSqOq/CKjWdF2fJb2layGOrKjAteyLYs51cGoNk0XqxhqpBJBbdC2o9Pd10bkTJfaMy204HV7ZqdUeJUh9QioFv+ZtczgDKgSNE2tdHAsngcJMuBaXc8/KbXlb5kOSzwnn159vi9sS8704+ya4r4vpuKRO958290NGFqwBDd3uqFe868/dyd2VYUaIEDAnF1JYj7SSPzXiIalvhbUhNCYh7FPM94mS+m1VgulmU73VXtTCdpLbKqaf1WbhSYaQC2ox8eMznycwj7h7RnjpuIqDGkwU06aJzZ+kvfWt/E35gdJneXH3xn8rj/TjO0gUIowtRNT9z6wjQ9dKQP6MftWEMo2SWAf8HnCJLPkGcIgTxP/j9WNPOmyP/9Ejd/wxa3h3U9m9XVAiuS6MnsCq9Y03InF4LnQkQ84lE0bRpsAJ9fcOfGy9w5/EbupG/kDht0H/xnqyBCuwpev783SrVOy6VwWnWNZsG21z+UAYKzcVXabdfLCT735BVYPfbvYVU+ge0SefEfS6RtHGuXyPHEDbfkFinnCewZkmaXgXhN+BwaUX9cVkAx6KfWOIx6AFJFewev4hCfJR+Xm9blA6mnM7VRKF8Mk4Uthq0tqlm49UVpjHn+XxJ+2jSzxVEM6Vu08G3F+b2R7jGb6tthgAw05asIvnsrtYXyVdkVCM6JU/96Coi3696Ze1S1F+f5I3me8CVZWWXTfriydXwzZr2BayG1/L4QDHSDdQJDO9td1pv5svEf54RFZa99w6Rx198BR/YDLQAAAHicY2BkYGAQYfjFwM6QzsDEAOIhACMDIwAkFAGDAAAAAAAAAAAAAKQBFQGYAc8CGwLBA1gDqARgBNYFcgW+BhkGrgcqB3kITQj0AAAAAQAAAAEBR4RjNMRfDzz1AAMD6AAAAADQ9xHxAAAAANRnGND+WP8JBJADcAAAAAcAAgAAAAAAAAH0ADcBLAAAAg0APwHcAD4CqgBAAJkALACZABsCbAA9AqQAOwIeABQB/wAnAdEAPwJ+AD4A8wAkAPMAJAJZADICVQBAAkIAGwMAADwCSwA/eJxjYGRgYC74z8nAwHLoX8T/RSwTGBgZUIEIAI6JBeN4nGNgYeJlnMDAysDA1MUUwcDA4A2hGeMYjBjVGRgYQFIwwMiABPx9/TwZDjAoMJQwF/znZGBgLmD4DlPD+IbpGAMDgwIDMwC+NgrFeJxjYGBgYmBgYGZgYBBhYGZgBNMsDAEMDAwCDAJgcQUGT4Y0hkyGbIY8hpL//8EiHgypCJH/D//v+b/0/5L/S/4v+j8XbAYKAAAC6xVwAAB4nH3OvUrDABiF4Se2VgTxAqRDRh0MaUGXLv5MDv4g4uBWS0gibVPSZOjeC/AKvCYvxIsQQwbj4Pbynfc7HOx50RP097Gl5cCBbcs7Dr233DP20XLf0GfLu458tTwwDAauFVY2SrlUphIai42cCz3JJEJXpsrGKYQelApvErPGv1SrZAqltdCxwsJS7lVtLVLZWElcSC1M5eYis8Y76bQ/SqRq8+Y2EonFzkzcu3XnxqTjn/756C7tZs+SZuFPthT+av+n8RsNoDjOAAB4nGNgZgCD/1sZjBiwAAAswgHqAAABAAH//wAPeJwlwcEJACAMBLBcUQQpiPsv68NE0L4ylRLDFMsWrcVx5QEHFQBwAAABAAAACgAcAB4AAURGTFQACAAEAAAAAP//AAAAAAAAeJxtks9KAlEUxn9nZvyf/VGRwdXgIlpIRIiEhCBNLlJCZFbu1DKiwSBa9QgtIlr1ND1BRE/QM7RqW8yZcRwhLuc7l4/vnHO/ey8C5HngE9PtDTwqV3eXN1T8yf0Cm12gTqo7PnVonIw8h2a/O3Y49rqeg+uN+g4D+P3FAER3Euw1m1G2opzSbKoyTWY28e9p+NdXEw7925nPkWJH0VU8UxxqRSqqC1AUw5mWYtgVclTitScf8mMcROqsVouuovbZpE6THmMWvPDOF99iiS374socE2GqEXbOKPOosWIMpnQQOmvcORcIFwnOpE2bKkI1ZgNPJhYZsuRUU6VKA6GR0OTUaYo0eYpsUqKslQU22GKbHT3Xs0ZYlVXmTWPFGDzhI/hr3AOvCK8JzmTOHBfBXWOHDFkgLBKspa7a2Ah2zIt2Dk4cKGxdLYRWQlFU1dL7ykvozoy8WvHL1TQbpNmghEGBMoZ2EQrxCxvUyK/dzHKCkP933qqyFN9wePbgtyTu/Q8640IiAAA=) format('woff'); font-display: block; }
+  h1 { font-family: 'Barrio', Georgia, serif; font-weight: normal; font-size: clamp(40px, 7.5vw, 76px); letter-spacing: .04em; line-height: 1.05; margin: 0 0 10px; }
+  .sub { font-style: italic; opacity: .85; margin-bottom: 28px; font-size: 17px; }
+  button { font: inherit; color: inherit; background: #ffffff14; border: 1px solid #ffffff55; border-radius: 3px; cursor: pointer; }
+  #go { font-size: 19px; letter-spacing: .14em; text-transform: uppercase; padding: 13px 34px; background: #d8c98f; color: #1b1a12; border-color: #d8c98f; }
+  #go:hover { background: #eadc9f; }
+  table { margin: 28px auto 20px; border-collapse: collapse; font-size: 14.5px; font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  td { padding: 3px 10px; text-align: left; opacity: .92; } td:first-child { text-align: right; opacity: .65; }
+  .qs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font: 13px -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; opacity: .9; }
+  .credit { margin-top: 26px; font: 13px -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; letter-spacing: .04em; }
+  .credit a { color: inherit; opacity: .7; text-underline-offset: 3px; } .credit a:hover { opacity: 1; }
+  .q { padding: 5px 12px; } .q.sel { background: #f1ecdf; color: #1b1a12; }
+  #hud, #stats, #toast { position: fixed; font: 13px -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; letter-spacing: .04em; text-shadow: 0 1px 6px #000c; pointer-events: none; z-index: 3; }
+  #hud { left: 18px; bottom: 14px; opacity: .85; white-space: pre; }
+  #stats { right: 18px; bottom: 14px; display: none; opacity: .8; }
+  #toast { left: 50%; top: 9%; transform: translateX(-50%); font-size: 16px; opacity: 0; transition: opacity .5s; letter-spacing: .12em; text-transform: uppercase; }
+  #toast.on { opacity: .95; }
+  #mbtn { position: fixed; right: 14px; top: 12px; width: 36px; height: 36px; font-size: 18px; z-index: 3; opacity: .55; }
+  .tb { position: fixed; right: 22px; width: 64px; height: 64px; border-radius: 50%; font-size: 24px; z-index: 3; display: none; touch-action: none; }
+  #tf { bottom: 110px; } #tb { bottom: 34px; }
+  @media (pointer: coarse) { .tb { display: block; } #hud { bottom: 8px; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div><div id="stats"></div><div id="toast"></div>
+<button id="mbtn" title="Menu">≡</button>
+<button id="tf" class="tb">▲</button><button id="tb" class="tb">▼</button>
+<div id="menu"><div class="panel">
+  <h1>Infinite Hike</h1>
+  <div class="sub">A trail that never ends. Forest, meadow, mountain, and back again.</div>
+  <button id="go">Start hiking</button>
+  <table>
+    <tr><td>W / S or ↑ / ↓</td><td>walk forward / back</td></tr>
+    <tr><td>Space</td><td>auto-walk on / off</td></tr>
+    <tr><td>Shift</td><td>jog</td></tr>
+    <tr><td>Drag, or A / D</td><td>look around</td></tr>
+    <tr><td>T</td><td>time of day</td></tr>
+    <tr><td>M &nbsp; H &nbsp; Esc</td><td>sound, stats, this menu</td></tr>
+  </table>
+  <div class="qs" style="margin-bottom:10px">Start in <button class="q sp sel">Anywhere</button><button class="q sp">Forest</button><button class="q sp">Autumn forest</button><button class="q sp">Meadow</button><button class="q sp">Alpine</button></div>
+  <div class="qs">Detail <button class="q">Low</button><button class="q">Medium</button><button class="q">High</button></div>
+  <div class="credit"><a href="https://github.com/Noniv/abyssal-garden" target="_blank" rel="noopener">Inspired by Abyssal Garden</a></div>
+</div></div>
+<div id="load"><span>Growing the forest</span><div id="track"><div id="bar"></div></div></div>
+<div id="msg"></div>
+<script type="module">
+/*JS*/
+</script>
+</body>
+</html>
