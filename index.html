@@ -936,12 +936,12 @@ struct MO { @builtin(position) cp: vec4f, @location(0) uv: vec2f, @location(1) c
     let up = ss(.02, mix(.55, .2, g.sun.w), rd.y);
     let sp = rd.xz / (rd.y + .35) * 46.; let ci = floor(sp); let hs = h21(ci);
     let dd = length(fract(sp) - .15 - .7 * vec2f(h21(ci + 7.), h21(ci + 13.)));
-    let thr = mix(.95, .82, g.sun.w);
-    var st = ss(.13, 0., dd) * step(thr, hs) * (hs - thr + .02) * mix(34., 14., g.sun.w) * (.65 + .35 * sin(g.cam.w * 2.5 + hs * 90.));
+    let thr = mix(.95, .9, g.sun.w);
+    var st = ss(.13, 0., dd) * step(thr, hs) * (hs - thr + .02) * mix(34., 20., g.sun.w) * (.65 + .35 * sin(g.cam.w * 2.5 + hs * 90.));
     if (g.sun.w > .01) {
       let sp2 = rd.xz / (rd.y + .35) * 110. + 31.; let c2 = floor(sp2); let h2 = h21(c2);
       let d2 = length(fract(sp2) - .2 - .6 * vec2f(h21(c2 + 5.), h21(c2 + 11.)));
-      st += g.sun.w * ss(.2, 0., d2) * step(.55, h2) * (h2 - .5) * 1.5;
+      st += g.sun.w * ss(.2, 0., d2) * step(.86, h2) * (h2 - .8) * 3.;
       let band = rd.x * .55 + rd.z * .3 - rd.y * .45;
       c += vec3f(.5, .56, .75) * (g.sun.w * .012 * exp(-band * band * 14.) * (.4 + fbm(rd.xz * 5. + rd.y * 3., 4)) * up);
     }
