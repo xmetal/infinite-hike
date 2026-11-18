@@ -14,7 +14,8 @@ Open `index.html` in a WebGPU browser (current Chrome, Edge, or Safari 26+). Not
 | Auto-walk | Space |
 | Jog | hold Shift |
 | Look around | drag the mouse, or A / D |
-| Time of day (morning, midday, golden hour, early evening) | T |
+| Time of day (morning, midday, golden hour, early evening, night) | T |
+| Headlamp on / off at night | L |
 | Sound, stats, menu | M, H, Esc |
 
 Each load starts at a random point on the trail; the menu can also jump to a forest, autumn forest, meadow or
@@ -56,5 +57,5 @@ Source is in `src/` (`world.js` is the place to start: trail shape, biomes, what
 | `src/audio.js` | the soundscape |
 | `template.html` | page, menu and styles |
 
-Test hooks (URL parameters): `?z=450` start position in metres, `?t=0..3` time of day, `?q=0..2` detail,
+Test hooks (URL parameters): `?z=450` start position in metres, `?t=0..4` time of day, `?q=0..2` detail,
 `?go` skip the menu.

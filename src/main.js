@@ -155,12 +155,14 @@ function stream(z) {
 }
 
 // ---------------------------------------------------------------- camera state (preallocated; the frame loop allocates nothing)
-// time of day presets: sun elevation, azimuth, colour, intensity, zenith, horizon, fog, exposure, shaft strength, dusk (sunset sky and stars)
+// time of day presets: sun elevation, azimuth, colour, intensity, zenith, horizon, fog, exposure, shaft strength, dusk (sunset sky and stars), night
 const TOD = [
-  { name: 'Morning', v: [0.50, -0.75, 1.0, 0.84, 0.62, 5.2, 0.12, 0.30, 0.72, 0.56, 0.67, 0.80, 0.0011, 0.62, 1.0, 0] },
-  { name: 'Midday', v: [1.05, -0.5, 1.0, 0.96, 0.88, 5.6, 0.10, 0.27, 0.75, 0.52, 0.68, 0.88, 0.0008, 0.56, 0.7, 0] },
-  { name: 'Golden hour', v: [0.17, -0.95, 1.0, 0.52, 0.2, 4.6, 0.14, 0.22, 0.50, 0.88, 0.54, 0.32, 0.0015, 0.75, 1.3, 0] },
-  { name: 'Early evening', v: [0.035, -1.05, 1.0, 0.36, 0.16, 2.6, 0.035, 0.065, 0.2, 0.8, 0.4, 0.24, 0.0013, 1.3, 1.2, 1] },
+  { name: 'Morning', v: [0.50, -0.75, 1.0, 0.84, 0.62, 5.2, 0.12, 0.30, 0.72, 0.56, 0.67, 0.80, 0.0011, 0.62, 1.0, 0, 0] },
+  { name: 'Midday', v: [1.05, -0.5, 1.0, 0.96, 0.88, 5.6, 0.10, 0.27, 0.75, 0.52, 0.68, 0.88, 0.0008, 0.56, 0.7, 0, 0] },
+  { name: 'Golden hour', v: [0.17, -0.95, 1.0, 0.52, 0.2, 4.6, 0.14, 0.22, 0.50, 0.88, 0.54, 0.32, 0.0015, 0.75, 1.3, 0, 0] },
+  { name: 'Early evening', v: [0.035, -1.05, 1.0, 0.36, 0.16, 2.6, 0.035, 0.065, 0.2, 0.8, 0.4, 0.24, 0.0013, 1.3, 1.2, 1, 0] },
+  // night: the 'sun' is a dim blue moon, the sky is nearly black, and the headlamp does the work (L switches it)
+  { name: 'Night', v: [0.85, -0.55, 0.6, 0.72, 1.0, 0.085, 0.004, 0.007, 0.018, 0.012, 0.018, 0.034, 0.0011, 1.25, 0.4, 0, 1] },
 ];
 let tod = clamp(+(qs.get('t') || 0) | 0, 0, TOD.length - 1);
 const TC = Float64Array.from(TOD[tod].v);
@@ -181,6 +183,7 @@ const BIO = new Float64Array(4), BC = new Float64Array(3), SUN = new Float64Arra
 let Z = qs.has('z') ? +qs.get('z') : findStart(0), spd = 0, auto = false, lookY = +(qs.get('yaw') || 0), lookP = +(qs.get('pitch') || 0), yawS = atan2(trailDX(Z), 1), pitS = 0, bob = 0, lastLook = -10, walked = 0;
 let T = +(qs.get('time') || 0), last = 0, started = false, paused = true, turn = 0;
 let CX = 0, CY = 0, CZ = 0, FX = 0, FY = 0, FZ = 1, RTX = 1, RTZ = 0, UX = 0, UY = 1, UZ = 0, pitch = 0;
+let lampOn = true, lampK = 1;
 const keys = { f: 0, b: 0, run: 0, l: 0, r: 0 }, TSPD = +(qs.get('speed') || 0); // test hook: walking speed
 
 function camera(dt) {
@@ -207,7 +210,7 @@ function camera(dt) {
 function setRow(M, o, r, x, y, z, w) { M[o + r] = x; M[o + 4 + r] = y; M[o + 8 + r] = z; M[o + 12 + r] = w; }
 function uniforms(dt) {
   const tv = TOD[tod].v, k = min(1, dt * 0.9);
-  for (let i = 0; i < 16; i++) TC[i] += (tv[i] - TC[i]) * k;
+  for (let i = 0; i < 17; i++) TC[i] += (tv[i] - TC[i]) * k;
   const el = TC[0], az = TC[1];
   SUN[0] = sin(az) * cos(el); SUN[1] = sin(el); SUN[2] = cos(az) * cos(el);
   const f = 1 / TANY, fa = f * H / W;
@@ -230,7 +233,7 @@ function uniforms(dt) {
   const wind = 0.34 + 0.2 * sin(T * 0.13) + 0.12 * sin(T * 0.31 + 1) + 0.25 * BIO[2];
   let o = 32;
   UB[o++] = CX; UB[o++] = CY; UB[o++] = CZ; UB[o++] = T;
-  UB[o++] = L0; UB[o++] = L1; UB[o++] = L2; UB[o++] = 0;
+  UB[o++] = L0; UB[o++] = L1; UB[o++] = L2; UB[o++] = TC[16];
   UB[o++] = TC[2] * TC[5]; UB[o++] = TC[3] * TC[5]; UB[o++] = TC[4] * TC[5]; UB[o++] = 0;
   UB[o++] = TC[6]; UB[o++] = TC[7]; UB[o++] = TC[8]; UB[o++] = 0;
   UB[o++] = TC[9]; UB[o++] = TC[10]; UB[o++] = TC[11]; UB[o++] = 0;
@@ -239,7 +242,8 @@ function uniforms(dt) {
   UB[o++] = UX; UB[o++] = UY; UB[o++] = UZ; UB[o++] = TANY;
   UB[o++] = W; UB[o++] = H; UB[o++] = 1 / W; UB[o++] = 1 / H;
   UB[o++] = BIO[0]; UB[o++] = BIO[1]; UB[o++] = BIO[2]; UB[o++] = BIO[3];
-  UB[o++] = 0.8; UB[o++] = 0.6; UB[o++] = wind; UB[o++] = 0;
+  lampK += ((lampOn ? 1 : 0) - lampK) * min(1, dt * 8);
+  UB[o++] = 0.8; UB[o++] = 0.6; UB[o++] = wind; UB[o++] = 5.5 * lampK * sst(0.25, 0.8, TC[16]); // the headlamp comes on as night falls
   UB[o++] = SC[0]; UB[o++] = SC[1]; UB[o++] = SC[2]; UB[o++] = SHR;
   const bk = min(1, dt * 0.2);
   BC[0] += (CX + sin(yawS) * 90 - BC[0]) * bk; BC[1] += (CY - BC[1]) * bk; BC[2] += (CZ + cos(yawS) * 90 - BC[2]) * bk;
@@ -467,6 +471,7 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'KeyM') audioMute();
   else if (e.code === 'KeyT') { tod = (tod + 1) % TOD.length; toast(TOD[tod].name); }
   else if (e.code === 'KeyO' && FAST) { CULL = !CULL; toast('Culling ' + (CULL ? 'on' : 'off')); }
+  else if (e.code === 'KeyL') { lampOn = !lampOn; toast('Headlamp ' + (lampOn ? 'on' : 'off')); }
   else if (e.code === 'KeyH') { statsOn = !statsOn; $('stats').style.display = statsOn ? 'block' : 'none'; }
 });
 addEventListener('keyup', (e) => { setKey(e.code, 0); });

@@ -73,11 +73,11 @@ function mkSound(ac) {
   };
   // woodpecker: a quick run of knocks
   const knockG = Gn(0, N(StereoPannerNode, { pan: -0.4 }, out, wet)); src(nwhite, 0.9, BQ('bandpass', 1150, 5, knockG));
-  let tGust = 0, lt = ac.currentTime, tBird = lt + 2, tBird2 = lt + rr(8, 20), tPeck = lt + rr(40, 120), tHawk = lt + rr(40, 120);
+  let tGust = 0, lt = ac.currentTime, tBird = lt + 2, tBird2 = lt + rr(8, 20), tPeck = lt + rr(40, 120), tHawk = lt + rr(40, 120), tOwl = lt + rr(15, 60);
   out.gain.setTargetAtTime(VOL, lt, 0.8);
   return () => {
     const now = ac.currentTime, t = now + 0.06; if (now <= lt) return; lt = now;
-    const F = BIO[0], M = BIO[1], A = BIO[2];
+    const F = BIO[0], M = BIO[1], A = BIO[2], NT = TC[16]; // NT: how far into night
     wind.gain.setTargetAtTime(0.25 * (0.075 + 0.04 * M + 0.2 * A + 0.012 * min(abs(spd), 6)), t, 1.5); // wind alone, halved twice from its first level
     if (t > tGust) { // next gust or lull: mostly gentle, now and then a strong one; the leaves follow the same swell
       const lvl = 0.2 + 0.8 * pow(rnd(), 1.7), tc = rr(1.2, 4);
@@ -86,8 +86,8 @@ function mkSound(ac) {
       tGust = t + rr(2.5, 11);
     }
     leaf.gain.setTargetAtTime(0.085 * F + 0.025 * M + 0.01 * A, t, 1.5); // a quiet background rustle
-    bug.gain.setTargetAtTime(0.6 * M * M, t, 2);
-    if (M > 0.05) for (const c of crickets) {
+    bug.gain.setTargetAtTime(0.6 * max(M * M, NT * (0.5 - 0.3 * A)), t, 2); // crickets sing everywhere after dark
+    if (M > 0.05 || NT > 0.3) for (const c of crickets) {
       if (!c.next) c.next = t + c.first;
       if (t < c.next) continue;
       if (c.left <= 0) { // start a new bout: how many chirps, how loud, how fast, how many pulses per chirp
@@ -99,11 +99,12 @@ function mkSound(ac) {
       c.next = t + c.pulses * c.rate + (c.left > 0 ? rr(0.25, 0.75) : rr(8, 48)); // a short gap, or a long rest after the bout
     }
     // animal sounds are occasional details, not a constant chorus: long, uneven gaps between them
-    const life = F + 0.7 * M + 0.12 * A; // how much birdsong
+    const life = (F + 0.7 * M + 0.12 * A) * (1 - 0.94 * NT); // how much birdsong (the birds sleep at night)
     if (t > tBird) { if (rnd() < life) { const d = rr(0.35, 1); const l = SONGS[(rnd() * (F > 0.4 ? 6 : 4)) | 0](t, take(birds, rr(-0.8, 0.8)), d); tBird = t + l + rr(1.6, 14) / max(life, 0.2); } else tBird = t + rr(4, 16); }
     if (t > tBird2) { if (rnd() < life) { const d = rr(0.2, 0.6); SONGS[(rnd() * 4) | 0](t, take(birds, rr(-0.9, 0.9)), d); } tBird2 = t + rr(12, 36); }
-    if (t > tPeck) { if (F > 0.5) { const g = knockG.gain, n = 9 + (rnd() * 8 | 0); for (let k = 0; k < n; k++) { const tt = t + k * 0.047; g.setValueAtTime(0.5 * (1 - k / n * 0.5), tt); g.exponentialRampToValueAtTime(0.001, tt + 0.03); } } tPeck = t + rr(72, 200); }
-    if (t > tHawk) { if (A + M * 0.4 > 0.5) { const v = take(harsh, rr(-0.5, 0.5)); note(v, t, 2700, 1750, 0.95, 0.02, 0.06); } tHawk = t + rr(100, 240); }
+    if (t > tPeck) { if (F > 0.5 && NT < 0.5) { const g = knockG.gain, n = 9 + (rnd() * 8 | 0); for (let k = 0; k < n; k++) { const tt = t + k * 0.047; g.setValueAtTime(0.5 * (1 - k / n * 0.5), tt); g.exponentialRampToValueAtTime(0.001, tt + 0.03); } } tPeck = t + rr(72, 200); }
+    if (t > tOwl) { if (NT > 0.6 && F + A > 0.4) { const v = take(birds, rr(-0.7, 0.7)), f = rr(360, 430), d = rr(0.4, 1); note(v, t, f, f * 0.96, 0.34, 0.07 * d, 0.07); note(v, t + 0.62, f * 1.02, f * 0.97, 0.2, 0.06 * d, 0.05); note(v, t + 0.9, f, f * 0.93, 0.5, 0.07 * d, 0.07); } tOwl = t + rr(40, 140); }
+    if (t > tHawk) { if (NT < 0.5 && A + M * 0.4 > 0.5) { const v = take(harsh, rr(-0.5, 0.5)); note(v, t, 2700, 1750, 0.95, 0.02, 0.06); } tHawk = t + rr(100, 240); }
   };
 }
 function audioStart() {

@@ -5,7 +5,7 @@ const S_G = /*wgsl*/`
 struct G {
   vp: mat4x4f, sm: mat4x4f,
   cam: vec4f,    // xyz eye, w time
-  sun: vec4f,    // xyz direction to the sun
+  sun: vec4f,    // xyz direction to the sun (the moon at night), w night amount
   sunC: vec4f,   // sun colour * intensity
   skyZ: vec4f,   // zenith colour
   skyH: vec4f,   // horizon colour
@@ -14,7 +14,7 @@ struct G {
   up: vec4f,     // xyz, w tan(half fov y)
   res: vec4f,    // w, h, 1/w, 1/h of the scene target
   bio: vec4f,    // forest, meadow, alpine, autumn at the camera
-  wind: vec4f,   // xz direction, strength, -
+  wind: vec4f,   // xz direction, strength, headlamp brightness
   shc: vec4f,    // shadow map centre xyz, radius
   bird: vec4f,   // centre of the bird flock
   misc: vec4f,   // exposure, light shaft density, fog density, dusk
@@ -73,7 +73,16 @@ fn fog(c: vec3f, wp: vec3f) -> vec3f {
   let fc = sky(normalize(vec3f(rd.x, max(rd.y, 0.) * .5 + .03, rd.z)));
   return mix(fc, c, T);
 }
-fn amb(n: vec3f) -> vec3f { return mix(g.skyH.rgb * .22 + vec3f(.03, .035, .015), g.skyZ.rgb * .6 + g.skyH.rgb * .3, n.y * .5 + .5); }
+fn amb(n: vec3f) -> vec3f { return mix(g.skyH.rgb * .22 + vec3f(.03, .035, .015) * (1. - .85 * g.sun.w), g.skyZ.rgb * .6 + g.skyH.rgb * .3, n.y * .5 + .5); }
+// The headlamp: a warm cone of light from the eye along the view, with a bright centre, a soft edge, a faint wide
+// spill so things beside you are not pitch black, and a falloff with distance. wrap softens it for thin foliage.
+fn lamp(wp: vec3f, n: vec3f, wrap: f32) -> vec3f {
+  if (g.wind.w < .001) { return vec3f(0.); }
+  let v = g.cam.xyz - wp; let d = length(v); let l = v / d;
+  let ca = dot(-l, g.fwd.xyz);
+  let cone = ss(.80, .95, ca) * (.55 + .45 * ss(.95, .995, ca)) + .05 * ss(.2, .8, ca);
+  return vec3f(1., .9, .74) * (g.wind.w * cone * mix(sat(dot(n, l)), 1., wrap) / (1. + .014 * d * d));
+}
 fn windAt(p: vec3f) -> vec2f {
   let ph = dot(p.xz, g.wind.xy) * .07 - g.cam.w * .8;
   return g.wind.xy * (g.wind.z * (.5 + .5 * sin(ph) * sin(ph * .37 + 1.7) + .15 * sin(ph * 2.3)));
@@ -165,7 +174,7 @@ struct TO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
   alb = mix(alb, dirt, tw);
   let sh = shadow9(wp, gn, farShade(wp.z));
   let ao = mix(1., .62, b.x * ss(1.5, 10., ad) * (1. - cano));
-  let c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * ao);
+  let c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * ao + lamp(wp, n, .15));
   return vec4f(fog(c, wp), 1.);
 }
 
@@ -212,7 +221,7 @@ struct SO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
   }
   let sh = shadow9(i.wp + n * select(0., .6, kind >= 3), n, mix(farShade(i.wp.z), 1., sat(i.k.w * 3.)));
   let V = normalize(i.wp - g.cam.xyz); let back = sat(dot(V, g.sun.xyz));
-  var c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * mix(.6, 1., sat(i.k.w * 3. + .3 - b.x * .3)));
+  var c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * mix(.6, 1., sat(i.k.w * 3. + .3 - b.x * .3)) + lamp(i.wp, n, .25));
   c += alb * vec3f(1.3, 1.2, .4) * g.sunC.rgb * (tr * sh * (.15 + .5 * back * back));
   return vec4f(fog(c, i.wp), 1.);
 }
@@ -289,7 +298,7 @@ fn cardAlpha(i: CO) -> vec2f {
   let V = normalize(i.wp - g.cam.xyz); let back = sat(dot(V, g.sun.xyz));
   let shd = shadow4(i.wp, n, mix(farShade(i.wp.z), 1., ss(3., 9., i.wp.y - g.cam.y)));
   let wrap = sat((dot(n, g.sun.xyz) + .35) / 1.35);
-  var c = alb * (g.sunC.rgb * wrap * shd + amb(n) * (.55 + .45 * sat(n.y + .5)));
+  var c = alb * (g.sunC.rgb * wrap * shd + amb(n) * (.55 + .45 * sat(n.y + .5)) + lamp(i.wp, n, .75));
   c += alb * vec3f(1.5, 1.35, .35) * g.sunC.rgb * (tr * shd * (.12 + .75 * back * back));
   return vec4f(fog(c, i.wp), a.x);
 }
@@ -319,7 +328,7 @@ struct GO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
   let n = normalize(i.n);
   let sh = shadow1(i.wp + g.sun.xyz * .3 + vec3f(0., .08, 0.), farShade(i.wp.z));
   let V = normalize(i.wp - g.cam.xyz); let back = sat(dot(V, g.sun.xyz));
-  let c = alb * (g.sunC.rgb * sh * (sat(dot(n, g.sun.xyz)) * .75 + (.25 + .9 * back * back) * lv) + amb(n) * (.35 + .65 * lv));
+  let c = alb * (g.sunC.rgb * sh * (sat(dot(n, g.sun.xyz)) * .75 + (.25 + .9 * back * back) * lv) + amb(n) * (.35 + .65 * lv) + lamp(i.wp, n, .7) * (.5 + .5 * lv));
   return vec4f(fog(c, i.wp), 1.);
 }
 
@@ -392,8 +401,9 @@ struct MO { @builtin(position) cp: vec4f, @location(0) uv: vec2f, @location(1) c
   let cr = vec2f(f32(vi & 1u), f32(vi >> 1u)) * 2. - 1.;
   o.cp = g.vp * vec4f(wp + (g.right.xyz * cr.x + g.up.xyz * cr.y) * sz, 1.);
   let mu = sat(dot(normalize(wp - g.cam.xyz), g.sun.xyz));
-  let br = lit * (.08 + 1.6 * pow(mu, 5.)) * (1. - ss(11., 16., dist)) * ss(.25, 1., dist) * (.55 + .45 * sin(t * 2.7 + s.w * 90.));
-  o.c = g.sunC.rgb * (br * .11 * (r0 * r0) / (sz * sz) * 3.); o.uv = cr;
+  let fade = (1. - ss(11., 16., dist)) * ss(.25, 1., dist) * (.55 + .45 * sin(t * 2.7 + s.w * 90.));
+  let br = lit * (.08 + 1.6 * pow(mu, 5.)) * fade;
+  o.c = (g.sunC.rgb * br + lamp(wp, g.fwd.xyz, 1.) * (fade * .5)) * (1. * .11 * (r0 * r0) / (sz * sz) * 3.); o.uv = cr;
   return o;
 }
 @fragment fn fsM(i: MO) -> @location(0) vec4f { return vec4f(i.c * sat(1. - dot(i.uv, i.uv)), 0.); }
@@ -404,10 +414,21 @@ struct MO { @builtin(position) cp: vec4f, @location(0) uv: vec2f, @location(1) c
   let rd = normalize(g.fwd.xyz + g.right.xyz * (nd.x * g.right.w) + g.up.xyz * (nd.y * g.up.w));
   var c = sky(rd);
   let mu = dot(rd, g.sun.xyz);
-  if (g.misc.w > .01 && rd.y > .08) { // the first stars, high up
+  let stars = max(g.misc.w, g.sun.w);
+  if (stars > .01 && rd.y > .02) { // a few first stars at dusk; at night two layers of them and a faint band of the galaxy
+    let up = ss(.02, mix(.55, .2, g.sun.w), rd.y);
     let sp = rd.xz / (rd.y + .35) * 46.; let ci = floor(sp); let hs = h21(ci);
     let dd = length(fract(sp) - .15 - .7 * vec2f(h21(ci + 7.), h21(ci + 13.)));
-    c += vec3f(.9, .95, 1.) * (ss(.13, 0., dd) * step(.95, hs) * (hs - .93) * 34. * (.65 + .35 * sin(g.cam.w * 2.5 + hs * 90.)) * g.misc.w * ss(.1, .55, rd.y));
+    let thr = mix(.95, .82, g.sun.w);
+    var st = ss(.13, 0., dd) * step(thr, hs) * (hs - thr + .02) * mix(34., 14., g.sun.w) * (.65 + .35 * sin(g.cam.w * 2.5 + hs * 90.));
+    if (g.sun.w > .01) {
+      let sp2 = rd.xz / (rd.y + .35) * 110. + 31.; let c2 = floor(sp2); let h2 = h21(c2);
+      let d2 = length(fract(sp2) - .2 - .6 * vec2f(h21(c2 + 5.), h21(c2 + 11.)));
+      st += g.sun.w * ss(.2, 0., d2) * step(.55, h2) * (h2 - .5) * 1.5;
+      let band = rd.x * .55 + rd.z * .3 - rd.y * .45;
+      c += vec3f(.5, .56, .75) * (g.sun.w * .012 * exp(-band * band * 14.) * (.4 + fbm(rd.xz * 5. + rd.y * 3., 4)) * up);
+    }
+    c += mix(vec3f(.9, .95, 1.), vec3f(1., .92, .8), h21(ci + 3.)) * (st * stars * up);
   }
   c += g.sunC.rgb * (ss(.99982, .99994, mu) * 25. + pow(max(mu, 0.), 900.) * 1.5);
   if (rd.y > .005) {

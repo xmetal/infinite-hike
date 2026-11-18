@@ -62,7 +62,7 @@
     <tr><td>Space</td><td>auto-walk on / off</td></tr>
     <tr><td>Shift</td><td>jog</td></tr>
     <tr><td>Drag, or A / D</td><td>look around</td></tr>
-    <tr><td>T</td><td>time of day</td></tr>
+    <tr><td>T &nbsp; L</td><td>time of day, headlamp at night</td></tr>
     <tr><td>M &nbsp; H &nbsp; Esc</td><td>sound, stats, this menu</td></tr>
   </table>
   <div class="qs" style="margin-bottom:10px">Start in <button class="q sp sel">Anywhere</button><button class="q sp">Forest</button><button class="q sp">Autumn forest</button><button class="q sp">Meadow</button><button class="q sp">Alpine</button></div>
@@ -522,7 +522,7 @@ const S_G = /*wgsl*/`
 struct G {
   vp: mat4x4f, sm: mat4x4f,
   cam: vec4f,    // xyz eye, w time
-  sun: vec4f,    // xyz direction to the sun
+  sun: vec4f,    // xyz direction to the sun (the moon at night), w night amount
   sunC: vec4f,   // sun colour * intensity
   skyZ: vec4f,   // zenith colour
   skyH: vec4f,   // horizon colour
@@ -531,7 +531,7 @@ struct G {
   up: vec4f,     // xyz, w tan(half fov y)
   res: vec4f,    // w, h, 1/w, 1/h of the scene target
   bio: vec4f,    // forest, meadow, alpine, autumn at the camera
-  wind: vec4f,   // xz direction, strength, -
+  wind: vec4f,   // xz direction, strength, headlamp brightness
   shc: vec4f,    // shadow map centre xyz, radius
   bird: vec4f,   // centre of the bird flock
   misc: vec4f,   // exposure, light shaft density, fog density, dusk
@@ -590,7 +590,16 @@ fn fog(c: vec3f, wp: vec3f) -> vec3f {
   let fc = sky(normalize(vec3f(rd.x, max(rd.y, 0.) * .5 + .03, rd.z)));
   return mix(fc, c, T);
 }
-fn amb(n: vec3f) -> vec3f { return mix(g.skyH.rgb * .22 + vec3f(.03, .035, .015), g.skyZ.rgb * .6 + g.skyH.rgb * .3, n.y * .5 + .5); }
+fn amb(n: vec3f) -> vec3f { return mix(g.skyH.rgb * .22 + vec3f(.03, .035, .015) * (1. - .85 * g.sun.w), g.skyZ.rgb * .6 + g.skyH.rgb * .3, n.y * .5 + .5); }
+// The headlamp: a warm cone of light from the eye along the view, with a bright centre, a soft edge, a faint wide
+// spill so things beside you are not pitch black, and a falloff with distance. wrap softens it for thin foliage.
+fn lamp(wp: vec3f, n: vec3f, wrap: f32) -> vec3f {
+  if (g.wind.w < .001) { return vec3f(0.); }
+  let v = g.cam.xyz - wp; let d = length(v); let l = v / d;
+  let ca = dot(-l, g.fwd.xyz);
+  let cone = ss(.80, .95, ca) * (.55 + .45 * ss(.95, .995, ca)) + .05 * ss(.2, .8, ca);
+  return vec3f(1., .9, .74) * (g.wind.w * cone * mix(sat(dot(n, l)), 1., wrap) / (1. + .014 * d * d));
+}
 fn windAt(p: vec3f) -> vec2f {
   let ph = dot(p.xz, g.wind.xy) * .07 - g.cam.w * .8;
   return g.wind.xy * (g.wind.z * (.5 + .5 * sin(ph) * sin(ph * .37 + 1.7) + .15 * sin(ph * 2.3)));
@@ -682,7 +691,7 @@ struct TO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
   alb = mix(alb, dirt, tw);
   let sh = shadow9(wp, gn, farShade(wp.z));
   let ao = mix(1., .62, b.x * ss(1.5, 10., ad) * (1. - cano));
-  let c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * ao);
+  let c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * ao + lamp(wp, n, .15));
   return vec4f(fog(c, wp), 1.);
 }
 
@@ -729,7 +738,7 @@ struct SO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
   }
   let sh = shadow9(i.wp + n * select(0., .6, kind >= 3), n, mix(farShade(i.wp.z), 1., sat(i.k.w * 3.)));
   let V = normalize(i.wp - g.cam.xyz); let back = sat(dot(V, g.sun.xyz));
-  var c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * mix(.6, 1., sat(i.k.w * 3. + .3 - b.x * .3)));
+  var c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * mix(.6, 1., sat(i.k.w * 3. + .3 - b.x * .3)) + lamp(i.wp, n, .25));
   c += alb * vec3f(1.3, 1.2, .4) * g.sunC.rgb * (tr * sh * (.15 + .5 * back * back));
   return vec4f(fog(c, i.wp), 1.);
 }
@@ -806,7 +815,7 @@ fn cardAlpha(i: CO) -> vec2f {
   let V = normalize(i.wp - g.cam.xyz); let back = sat(dot(V, g.sun.xyz));
   let shd = shadow4(i.wp, n, mix(farShade(i.wp.z), 1., ss(3., 9., i.wp.y - g.cam.y)));
   let wrap = sat((dot(n, g.sun.xyz) + .35) / 1.35);
-  var c = alb * (g.sunC.rgb * wrap * shd + amb(n) * (.55 + .45 * sat(n.y + .5)));
+  var c = alb * (g.sunC.rgb * wrap * shd + amb(n) * (.55 + .45 * sat(n.y + .5)) + lamp(i.wp, n, .75));
   c += alb * vec3f(1.5, 1.35, .35) * g.sunC.rgb * (tr * shd * (.12 + .75 * back * back));
   return vec4f(fog(c, i.wp), a.x);
 }
@@ -836,7 +845,7 @@ struct GO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
   let n = normalize(i.n);
   let sh = shadow1(i.wp + g.sun.xyz * .3 + vec3f(0., .08, 0.), farShade(i.wp.z));
   let V = normalize(i.wp - g.cam.xyz); let back = sat(dot(V, g.sun.xyz));
-  let c = alb * (g.sunC.rgb * sh * (sat(dot(n, g.sun.xyz)) * .75 + (.25 + .9 * back * back) * lv) + amb(n) * (.35 + .65 * lv));
+  let c = alb * (g.sunC.rgb * sh * (sat(dot(n, g.sun.xyz)) * .75 + (.25 + .9 * back * back) * lv) + amb(n) * (.35 + .65 * lv) + lamp(i.wp, n, .7) * (.5 + .5 * lv));
   return vec4f(fog(c, i.wp), 1.);
 }
 
@@ -909,8 +918,9 @@ struct MO { @builtin(position) cp: vec4f, @location(0) uv: vec2f, @location(1) c
   let cr = vec2f(f32(vi & 1u), f32(vi >> 1u)) * 2. - 1.;
   o.cp = g.vp * vec4f(wp + (g.right.xyz * cr.x + g.up.xyz * cr.y) * sz, 1.);
   let mu = sat(dot(normalize(wp - g.cam.xyz), g.sun.xyz));
-  let br = lit * (.08 + 1.6 * pow(mu, 5.)) * (1. - ss(11., 16., dist)) * ss(.25, 1., dist) * (.55 + .45 * sin(t * 2.7 + s.w * 90.));
-  o.c = g.sunC.rgb * (br * .11 * (r0 * r0) / (sz * sz) * 3.); o.uv = cr;
+  let fade = (1. - ss(11., 16., dist)) * ss(.25, 1., dist) * (.55 + .45 * sin(t * 2.7 + s.w * 90.));
+  let br = lit * (.08 + 1.6 * pow(mu, 5.)) * fade;
+  o.c = (g.sunC.rgb * br + lamp(wp, g.fwd.xyz, 1.) * (fade * .5)) * (1. * .11 * (r0 * r0) / (sz * sz) * 3.); o.uv = cr;
   return o;
 }
 @fragment fn fsM(i: MO) -> @location(0) vec4f { return vec4f(i.c * sat(1. - dot(i.uv, i.uv)), 0.); }
@@ -921,10 +931,21 @@ struct MO { @builtin(position) cp: vec4f, @location(0) uv: vec2f, @location(1) c
   let rd = normalize(g.fwd.xyz + g.right.xyz * (nd.x * g.right.w) + g.up.xyz * (nd.y * g.up.w));
   var c = sky(rd);
   let mu = dot(rd, g.sun.xyz);
-  if (g.misc.w > .01 && rd.y > .08) { // the first stars, high up
+  let stars = max(g.misc.w, g.sun.w);
+  if (stars > .01 && rd.y > .02) { // a few first stars at dusk; at night two layers of them and a faint band of the galaxy
+    let up = ss(.02, mix(.55, .2, g.sun.w), rd.y);
     let sp = rd.xz / (rd.y + .35) * 46.; let ci = floor(sp); let hs = h21(ci);
     let dd = length(fract(sp) - .15 - .7 * vec2f(h21(ci + 7.), h21(ci + 13.)));
-    c += vec3f(.9, .95, 1.) * (ss(.13, 0., dd) * step(.95, hs) * (hs - .93) * 34. * (.65 + .35 * sin(g.cam.w * 2.5 + hs * 90.)) * g.misc.w * ss(.1, .55, rd.y));
+    let thr = mix(.95, .82, g.sun.w);
+    var st = ss(.13, 0., dd) * step(thr, hs) * (hs - thr + .02) * mix(34., 14., g.sun.w) * (.65 + .35 * sin(g.cam.w * 2.5 + hs * 90.));
+    if (g.sun.w > .01) {
+      let sp2 = rd.xz / (rd.y + .35) * 110. + 31.; let c2 = floor(sp2); let h2 = h21(c2);
+      let d2 = length(fract(sp2) - .2 - .6 * vec2f(h21(c2 + 5.), h21(c2 + 11.)));
+      st += g.sun.w * ss(.2, 0., d2) * step(.55, h2) * (h2 - .5) * 1.5;
+      let band = rd.x * .55 + rd.z * .3 - rd.y * .45;
+      c += vec3f(.5, .56, .75) * (g.sun.w * .012 * exp(-band * band * 14.) * (.4 + fbm(rd.xz * 5. + rd.y * 3., 4)) * up);
+    }
+    c += mix(vec3f(.9, .95, 1.), vec3f(1., .92, .8), h21(ci + 3.)) * (st * stars * up);
   }
   c += g.sunC.rgb * (ss(.99982, .99994, mu) * 25. + pow(max(mu, 0.), 900.) * 1.5);
   if (rd.y > .005) {
@@ -1117,11 +1138,11 @@ function mkSound(ac) {
   };
   // woodpecker: a quick run of knocks
   const knockG = Gn(0, N(StereoPannerNode, { pan: -0.4 }, out, wet)); src(nwhite, 0.9, BQ('bandpass', 1150, 5, knockG));
-  let tGust = 0, lt = ac.currentTime, tBird = lt + 2, tBird2 = lt + rr(8, 20), tPeck = lt + rr(40, 120), tHawk = lt + rr(40, 120);
+  let tGust = 0, lt = ac.currentTime, tBird = lt + 2, tBird2 = lt + rr(8, 20), tPeck = lt + rr(40, 120), tHawk = lt + rr(40, 120), tOwl = lt + rr(15, 60);
   out.gain.setTargetAtTime(VOL, lt, 0.8);
   return () => {
     const now = ac.currentTime, t = now + 0.06; if (now <= lt) return; lt = now;
-    const F = BIO[0], M = BIO[1], A = BIO[2];
+    const F = BIO[0], M = BIO[1], A = BIO[2], NT = TC[16]; // NT: how far into night
     wind.gain.setTargetAtTime(0.25 * (0.075 + 0.04 * M + 0.2 * A + 0.012 * min(abs(spd), 6)), t, 1.5); // wind alone, halved twice from its first level
     if (t > tGust) { // next gust or lull: mostly gentle, now and then a strong one; the leaves follow the same swell
       const lvl = 0.2 + 0.8 * pow(rnd(), 1.7), tc = rr(1.2, 4);
@@ -1130,8 +1151,8 @@ function mkSound(ac) {
       tGust = t + rr(2.5, 11);
     }
     leaf.gain.setTargetAtTime(0.085 * F + 0.025 * M + 0.01 * A, t, 1.5); // a quiet background rustle
-    bug.gain.setTargetAtTime(0.6 * M * M, t, 2);
-    if (M > 0.05) for (const c of crickets) {
+    bug.gain.setTargetAtTime(0.6 * max(M * M, NT * (0.5 - 0.3 * A)), t, 2); // crickets sing everywhere after dark
+    if (M > 0.05 || NT > 0.3) for (const c of crickets) {
       if (!c.next) c.next = t + c.first;
       if (t < c.next) continue;
       if (c.left <= 0) { // start a new bout: how many chirps, how loud, how fast, how many pulses per chirp
@@ -1143,11 +1164,12 @@ function mkSound(ac) {
       c.next = t + c.pulses * c.rate + (c.left > 0 ? rr(0.25, 0.75) : rr(8, 48)); // a short gap, or a long rest after the bout
     }
     // animal sounds are occasional details, not a constant chorus: long, uneven gaps between them
-    const life = F + 0.7 * M + 0.12 * A; // how much birdsong
+    const life = (F + 0.7 * M + 0.12 * A) * (1 - 0.94 * NT); // how much birdsong (the birds sleep at night)
     if (t > tBird) { if (rnd() < life) { const d = rr(0.35, 1); const l = SONGS[(rnd() * (F > 0.4 ? 6 : 4)) | 0](t, take(birds, rr(-0.8, 0.8)), d); tBird = t + l + rr(1.6, 14) / max(life, 0.2); } else tBird = t + rr(4, 16); }
     if (t > tBird2) { if (rnd() < life) { const d = rr(0.2, 0.6); SONGS[(rnd() * 4) | 0](t, take(birds, rr(-0.9, 0.9)), d); } tBird2 = t + rr(12, 36); }
-    if (t > tPeck) { if (F > 0.5) { const g = knockG.gain, n = 9 + (rnd() * 8 | 0); for (let k = 0; k < n; k++) { const tt = t + k * 0.047; g.setValueAtTime(0.5 * (1 - k / n * 0.5), tt); g.exponentialRampToValueAtTime(0.001, tt + 0.03); } } tPeck = t + rr(72, 200); }
-    if (t > tHawk) { if (A + M * 0.4 > 0.5) { const v = take(harsh, rr(-0.5, 0.5)); note(v, t, 2700, 1750, 0.95, 0.02, 0.06); } tHawk = t + rr(100, 240); }
+    if (t > tPeck) { if (F > 0.5 && NT < 0.5) { const g = knockG.gain, n = 9 + (rnd() * 8 | 0); for (let k = 0; k < n; k++) { const tt = t + k * 0.047; g.setValueAtTime(0.5 * (1 - k / n * 0.5), tt); g.exponentialRampToValueAtTime(0.001, tt + 0.03); } } tPeck = t + rr(72, 200); }
+    if (t > tOwl) { if (NT > 0.6 && F + A > 0.4) { const v = take(birds, rr(-0.7, 0.7)), f = rr(360, 430), d = rr(0.4, 1); note(v, t, f, f * 0.96, 0.34, 0.07 * d, 0.07); note(v, t + 0.62, f * 1.02, f * 0.97, 0.2, 0.06 * d, 0.05); note(v, t + 0.9, f, f * 0.93, 0.5, 0.07 * d, 0.07); } tOwl = t + rr(40, 140); }
+    if (t > tHawk) { if (NT < 0.5 && A + M * 0.4 > 0.5) { const v = take(harsh, rr(-0.5, 0.5)); note(v, t, 2700, 1750, 0.95, 0.02, 0.06); } tHawk = t + rr(100, 240); }
   };
 }
 function audioStart() {
@@ -1319,12 +1341,14 @@ function stream(z) {
 }
 
 // ---------------------------------------------------------------- camera state (preallocated; the frame loop allocates nothing)
-// time of day presets: sun elevation, azimuth, colour, intensity, zenith, horizon, fog, exposure, shaft strength, dusk (sunset sky and stars)
+// time of day presets: sun elevation, azimuth, colour, intensity, zenith, horizon, fog, exposure, shaft strength, dusk (sunset sky and stars), night
 const TOD = [
-  { name: 'Morning', v: [0.50, -0.75, 1.0, 0.84, 0.62, 5.2, 0.12, 0.30, 0.72, 0.56, 0.67, 0.80, 0.0011, 0.62, 1.0, 0] },
-  { name: 'Midday', v: [1.05, -0.5, 1.0, 0.96, 0.88, 5.6, 0.10, 0.27, 0.75, 0.52, 0.68, 0.88, 0.0008, 0.56, 0.7, 0] },
-  { name: 'Golden hour', v: [0.17, -0.95, 1.0, 0.52, 0.2, 4.6, 0.14, 0.22, 0.50, 0.88, 0.54, 0.32, 0.0015, 0.75, 1.3, 0] },
-  { name: 'Early evening', v: [0.035, -1.05, 1.0, 0.36, 0.16, 2.6, 0.035, 0.065, 0.2, 0.8, 0.4, 0.24, 0.0013, 1.3, 1.2, 1] },
+  { name: 'Morning', v: [0.50, -0.75, 1.0, 0.84, 0.62, 5.2, 0.12, 0.30, 0.72, 0.56, 0.67, 0.80, 0.0011, 0.62, 1.0, 0, 0] },
+  { name: 'Midday', v: [1.05, -0.5, 1.0, 0.96, 0.88, 5.6, 0.10, 0.27, 0.75, 0.52, 0.68, 0.88, 0.0008, 0.56, 0.7, 0, 0] },
+  { name: 'Golden hour', v: [0.17, -0.95, 1.0, 0.52, 0.2, 4.6, 0.14, 0.22, 0.50, 0.88, 0.54, 0.32, 0.0015, 0.75, 1.3, 0, 0] },
+  { name: 'Early evening', v: [0.035, -1.05, 1.0, 0.36, 0.16, 2.6, 0.035, 0.065, 0.2, 0.8, 0.4, 0.24, 0.0013, 1.3, 1.2, 1, 0] },
+  // night: the 'sun' is a dim blue moon, the sky is nearly black, and the headlamp does the work (L switches it)
+  { name: 'Night', v: [0.85, -0.55, 0.6, 0.72, 1.0, 0.085, 0.004, 0.007, 0.018, 0.012, 0.018, 0.034, 0.0011, 1.25, 0.4, 0, 1] },
 ];
 let tod = clamp(+(qs.get('t') || 0) | 0, 0, TOD.length - 1);
 const TC = Float64Array.from(TOD[tod].v);
@@ -1345,6 +1369,7 @@ const BIO = new Float64Array(4), BC = new Float64Array(3), SUN = new Float64Arra
 let Z = qs.has('z') ? +qs.get('z') : findStart(0), spd = 0, auto = false, lookY = +(qs.get('yaw') || 0), lookP = +(qs.get('pitch') || 0), yawS = atan2(trailDX(Z), 1), pitS = 0, bob = 0, lastLook = -10, walked = 0;
 let T = +(qs.get('time') || 0), last = 0, started = false, paused = true, turn = 0;
 let CX = 0, CY = 0, CZ = 0, FX = 0, FY = 0, FZ = 1, RTX = 1, RTZ = 0, UX = 0, UY = 1, UZ = 0, pitch = 0;
+let lampOn = true, lampK = 1;
 const keys = { f: 0, b: 0, run: 0, l: 0, r: 0 }, TSPD = +(qs.get('speed') || 0); // test hook: walking speed
 
 function camera(dt) {
@@ -1371,7 +1396,7 @@ function camera(dt) {
 function setRow(M, o, r, x, y, z, w) { M[o + r] = x; M[o + 4 + r] = y; M[o + 8 + r] = z; M[o + 12 + r] = w; }
 function uniforms(dt) {
   const tv = TOD[tod].v, k = min(1, dt * 0.9);
-  for (let i = 0; i < 16; i++) TC[i] += (tv[i] - TC[i]) * k;
+  for (let i = 0; i < 17; i++) TC[i] += (tv[i] - TC[i]) * k;
   const el = TC[0], az = TC[1];
   SUN[0] = sin(az) * cos(el); SUN[1] = sin(el); SUN[2] = cos(az) * cos(el);
   const f = 1 / TANY, fa = f * H / W;
@@ -1394,7 +1419,7 @@ function uniforms(dt) {
   const wind = 0.34 + 0.2 * sin(T * 0.13) + 0.12 * sin(T * 0.31 + 1) + 0.25 * BIO[2];
   let o = 32;
   UB[o++] = CX; UB[o++] = CY; UB[o++] = CZ; UB[o++] = T;
-  UB[o++] = L0; UB[o++] = L1; UB[o++] = L2; UB[o++] = 0;
+  UB[o++] = L0; UB[o++] = L1; UB[o++] = L2; UB[o++] = TC[16];
   UB[o++] = TC[2] * TC[5]; UB[o++] = TC[3] * TC[5]; UB[o++] = TC[4] * TC[5]; UB[o++] = 0;
   UB[o++] = TC[6]; UB[o++] = TC[7]; UB[o++] = TC[8]; UB[o++] = 0;
   UB[o++] = TC[9]; UB[o++] = TC[10]; UB[o++] = TC[11]; UB[o++] = 0;
@@ -1403,7 +1428,8 @@ function uniforms(dt) {
   UB[o++] = UX; UB[o++] = UY; UB[o++] = UZ; UB[o++] = TANY;
   UB[o++] = W; UB[o++] = H; UB[o++] = 1 / W; UB[o++] = 1 / H;
   UB[o++] = BIO[0]; UB[o++] = BIO[1]; UB[o++] = BIO[2]; UB[o++] = BIO[3];
-  UB[o++] = 0.8; UB[o++] = 0.6; UB[o++] = wind; UB[o++] = 0;
+  lampK += ((lampOn ? 1 : 0) - lampK) * min(1, dt * 8);
+  UB[o++] = 0.8; UB[o++] = 0.6; UB[o++] = wind; UB[o++] = 5.5 * lampK * sst(0.25, 0.8, TC[16]); // the headlamp comes on as night falls
   UB[o++] = SC[0]; UB[o++] = SC[1]; UB[o++] = SC[2]; UB[o++] = SHR;
   const bk = min(1, dt * 0.2);
   BC[0] += (CX + sin(yawS) * 90 - BC[0]) * bk; BC[1] += (CY - BC[1]) * bk; BC[2] += (CZ + cos(yawS) * 90 - BC[2]) * bk;
@@ -1631,6 +1657,7 @@ addEventListener('keydown', (e) => {
   else if (e.code === 'KeyM') audioMute();
   else if (e.code === 'KeyT') { tod = (tod + 1) % TOD.length; toast(TOD[tod].name); }
   else if (e.code === 'KeyO' && FAST) { CULL = !CULL; toast('Culling ' + (CULL ? 'on' : 'off')); }
+  else if (e.code === 'KeyL') { lampOn = !lampOn; toast('Headlamp ' + (lampOn ? 'on' : 'off')); }
   else if (e.code === 'KeyH') { statsOn = !statsOn; $('stats').style.display = statsOn ? 'block' : 'none'; }
 });
 addEventListener('keyup', (e) => { setKey(e.code, 0); });
