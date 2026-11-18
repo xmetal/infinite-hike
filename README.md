@@ -32,7 +32,8 @@ alpine stretch. Detail (Low / Medium / High) is in the menu too. Medium is the d
   blades per chunk. Leaf, needle and petal shapes are drawn in the fragment shader.
 - **Light**: one sun shadow map, ray-marched volumetric light shafts through the canopy (half resolution with a
   depth-aware blur), height fog, HDR with bloom and an ACES tone curve, 4x MSAA with alpha-to-coverage foliage.
-- **Life**: birds, butterflies in the meadows, falling leaves, and dust motes that light up in sunbeams.
+- **Life**: birds, butterflies in the meadows, falling leaves, and dust motes that light up in sunbeams. Now and
+  then a bear ambles among the trees, a squirrel darts near the path, or a rabbit hops through the grass.
 - **Sound**: all synthesized with Web Audio: wind, leaf rustle, six kinds of birdsong, a woodpecker, meadow
   insects, a hawk in the mountains, and footsteps that change with the ground.
 
@@ -58,4 +59,4 @@ Source is in `src/` (`world.js` is the place to start: trail shape, biomes, what
 | `template.html` | page, menu and styles |
 
 Test hooks (URL parameters): `?z=450` start position in metres, `?t=0..4` time of day, `?q=0..2` detail,
-`?go` skip the menu.
+`?go` skip the menu, `?zoo` an animal beside the trail in every chunk.

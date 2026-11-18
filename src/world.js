@@ -146,7 +146,20 @@ function genRocks(c, dens) {
     const d = (rng() < 0.5 ? -1.9 : 1.9) * hypot(1, trailDX(z0 + 20)); place(d, 20); let y = LY - 0.05;
     for (let k = 0; k < 5; k++) { const s = 0.3 - k * 0.05; put(n++, LX + (rng() - 0.5) * 0.06, y + s * 0.5, z0 + 20 + (rng() - 0.5) * 0.06, s, rng() * TAU, rng(), 0, k % ROCKV); y += s * 1.15; }
   }
-  bucket(n, ROCKV, c.rg);
+  // Animals share the rock buffer (groups 3 bear, 4 squirrel, 5 rabbit). They are rare: at most one kind in a
+  // chunk, and most chunks have none. Each gets the slope of the ground along the short line it wanders.
+  const zoo = qs.has('zoo'), ra = zoo ? 2 : rng(), pB = 0.05 * (BB[0] + 0.7 * BB[2]), pS = 0.11 * BB[0], pR = 0.12 * (BB[1] + 0.4 * BB[0]);
+  const animal = (sp, near, far, s0, s1) => {
+    const zl = zoo ? 7 : 6 + rng() * 28, d = (rng() < 0.5 ? -1 : 1) * (near + rng() * (far - near)), yaw = rng() * TAU, sc = mix(s0, s1, rng());
+    place(d, zl); const x = LX, y = LY;
+    const dzw = -sin(yaw), zz = clamp(zl + dzw, 0, CL); place(d + cos(yaw) - trailDX(z0 + zl) * dzw, zz);
+    put(n++, x, y, z0 + zl, sc, yaw, rng(), clamp(LY - y, -0.3, 0.3), ROCKV + sp - 1); ISC[(n - 1) * 8 + 7] = sp;
+  };
+  if (zoo) { const k = ((ci % 3) + 3) % 3; if (k === 0) animal(1, 4, 4.5, 0.9, 1.15); else if (k === 1) animal(2, 1.2, 1.4, 1.5, 1.9); else animal(3, 1.2, 1.4, 1.1, 1.4); } // ?zoo: one beside the trail in every chunk, for checking them
+  else if (ra < pB) animal(1, 12, 38, 0.9, 1.15);
+  else if (ra < pB + pS) animal(2, 2.2, 9, 1.5, 1.9);
+  else if (ra < pB + pS + pR) { animal(3, 2, 10, 1.1, 1.4); if (rng() < 0.4) animal(3, 2, 10, 1.0, 1.3); }
+  bucket(n, ROCKV + 3, c.rg);
   return n;
 }
 // undergrowth: 0 ferns, 1 bushes, 2 flower clumps, 3 flower spikes

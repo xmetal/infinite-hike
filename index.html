@@ -321,6 +321,45 @@ function buildFlowers(seed, spike) {
   return { C };
 }
 
+// ---------------------------------------------------------------- animals (solid meshes; forward is +x)
+// Built from soft ellipsoids and tapered limbs. The 'sway' slot of each vertex holds a body part and a weight
+// (0 body, 1 head, 2 / 3 the two diagonal leg pairs, 4 tail, 5 ears; the fraction is how far along the part),
+// which the vertex shader uses to move legs, flick tails and twitch ears. Kinds 5-9 are fur colours.
+const ell = (M, c, r, kind, code, sub = 1) => blob(M, sub, kind, (d) => [[c[0] + d[0] * r[0], c[1] + d[1] * r[1], c[2] + d[2] * r[2]], code]);
+function buildBear() {
+  const S = newMesh();
+  ell(S, [0, 0.78, 0], [0.82, 0.5, 0.46], 5, 0, 2); ell(S, [0.45, 0.92, 0], [0.42, 0.42, 0.4], 5, 0, 1); ell(S, [-0.82, 0.86, 0], [0.09, 0.08, 0.08], 5, 0, 1);
+  ell(S, [0.98, 0.98, 0], [0.3, 0.27, 0.27], 5, 1.9, 2); ell(S, [1.24, 0.9, 0], [0.17, 0.115, 0.13], 8, 1.9, 1); ell(S, [1.4, 0.93, 0], [0.045, 0.04, 0.05], 9, 1.9, 1);
+  for (const z of [-1, 1]) {
+    ell(S, [0.9, 1.24, z * 0.2], [0.085, 0.095, 0.06], 5, 1.9, 1); ell(S, [1.19, 1.03, z * 0.13], [0.03, 0.035, 0.03], 9, 1.9, 1);
+    for (const x of [0.5, -0.5]) { const pt = (x > 0) === (z > 0) ? 2 : 3; limb(S, [[x, 0.66, z * 0.27, 0.18, pt], [x, 0.3, z * 0.27, 0.155, pt + 0.5], [x + 0.03, -0.03, z * 0.27, 0.14, pt + 0.99]], 6, 5); }
+  }
+  return { S };
+}
+function buildSquirrel() {
+  const S = newMesh();
+  ell(S, [0, 0.085, 0], [0.1, 0.065, 0.055], 6, 0, 2); ell(S, [0.045, 0.07, 0], [0.06, 0.05, 0.046], 8, 0, 1);
+  ell(S, [0.12, 0.135, 0], [0.055, 0.05, 0.045], 6, 1.9, 2); ell(S, [0.172, 0.128, 0], [0.011, 0.01, 0.012], 9, 1.9, 1);
+  limb(S, [[-0.08, 0.09, 0, 0.035, 4], [-0.19, 0.16, 0, 0.06, 4.3], [-0.2, 0.29, 0, 0.065, 4.6], [-0.13, 0.37, 0, 0.05, 4.85], [-0.07, 0.38, 0, 0.02, 4.99]], 6, 6);
+  for (const z of [-1, 1]) {
+    ell(S, [0.15, 0.15, z * 0.035], [0.012, 0.013, 0.01], 9, 1.9, 1); ell(S, [0.1, 0.185, z * 0.03], [0.015, 0.025, 0.012], 6, 1.9, 1);
+    for (const x of [0.06, -0.06]) { const pt = (x > 0) === (z > 0) ? 2 : 3; limb(S, [[x, 0.06, z * 0.045, 0.02, pt], [x + 0.01, -0.005, z * 0.05, 0.016, pt + 0.99]], 4, 6); }
+  }
+  return { S };
+}
+function buildRabbit() {
+  const S = newMesh();
+  ell(S, [0, 0.13, 0], [0.17, 0.125, 0.11], 7, 0, 2); ell(S, [-0.07, 0.125, 0], [0.12, 0.12, 0.12], 7, 0, 1); ell(S, [-0.19, 0.16, 0], [0.05, 0.05, 0.05], 8, 0, 1);
+  ell(S, [0.17, 0.25, 0], [0.085, 0.08, 0.075], 7, 1.9, 2); ell(S, [0.25, 0.237, 0], [0.013, 0.012, 0.016], 9, 1.9, 1);
+  for (const z of [-1, 1]) {
+    ell(S, [0.2, 0.275, z * 0.06], [0.017, 0.018, 0.012], 9, 1.9, 1);
+    limb(S, [[0.15, 0.31, z * 0.035, 0.028, 5], [0.12, 0.43, z * 0.05, 0.032, 5.5], [0.1, 0.54, z * 0.055, 0.012, 5.99]], 5, 7);
+    limb(S, [[0.1, 0.1, z * 0.05, 0.026, 2], [0.12, -0.005, z * 0.05, 0.022, 2.99]], 4, 7);
+    ell(S, [-0.05, 0.03, z * 0.085], [0.09, 0.03, 0.035], 7, 3.5, 1);
+  }
+  return { S };
+}
+
 // ============================================================================
 // the world: an endless trail, the land around it, and what grows there
 // ============================================================================
@@ -469,7 +508,20 @@ function genRocks(c, dens) {
     const d = (rng() < 0.5 ? -1.9 : 1.9) * hypot(1, trailDX(z0 + 20)); place(d, 20); let y = LY - 0.05;
     for (let k = 0; k < 5; k++) { const s = 0.3 - k * 0.05; put(n++, LX + (rng() - 0.5) * 0.06, y + s * 0.5, z0 + 20 + (rng() - 0.5) * 0.06, s, rng() * TAU, rng(), 0, k % ROCKV); y += s * 1.15; }
   }
-  bucket(n, ROCKV, c.rg);
+  // Animals share the rock buffer (groups 3 bear, 4 squirrel, 5 rabbit). They are rare: at most one kind in a
+  // chunk, and most chunks have none. Each gets the slope of the ground along the short line it wanders.
+  const zoo = qs.has('zoo'), ra = zoo ? 2 : rng(), pB = 0.05 * (BB[0] + 0.7 * BB[2]), pS = 0.11 * BB[0], pR = 0.12 * (BB[1] + 0.4 * BB[0]);
+  const animal = (sp, near, far, s0, s1) => {
+    const zl = zoo ? 7 : 6 + rng() * 28, d = (rng() < 0.5 ? -1 : 1) * (near + rng() * (far - near)), yaw = rng() * TAU, sc = mix(s0, s1, rng());
+    place(d, zl); const x = LX, y = LY;
+    const dzw = -sin(yaw), zz = clamp(zl + dzw, 0, CL); place(d + cos(yaw) - trailDX(z0 + zl) * dzw, zz);
+    put(n++, x, y, z0 + zl, sc, yaw, rng(), clamp(LY - y, -0.3, 0.3), ROCKV + sp - 1); ISC[(n - 1) * 8 + 7] = sp;
+  };
+  if (zoo) { const k = ((ci % 3) + 3) % 3; if (k === 0) animal(1, 4, 4.5, 0.9, 1.15); else if (k === 1) animal(2, 1.2, 1.4, 1.5, 1.9); else animal(3, 1.2, 1.4, 1.1, 1.4); } // ?zoo: one beside the trail in every chunk, for checking them
+  else if (ra < pB) animal(1, 12, 38, 0.9, 1.15);
+  else if (ra < pB + pS) animal(2, 2.2, 9, 1.5, 1.9);
+  else if (ra < pB + pS + pR) { animal(3, 2, 10, 1.1, 1.4); if (rng() < 0.4) animal(3, 2, 10, 1.0, 1.3); }
+  bucket(n, ROCKV + 3, c.rg);
   return n;
 }
 // undergrowth: 0 ferns, 1 bushes, 2 flower clumps, 3 flower spikes
@@ -702,10 +754,33 @@ struct SO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
   let lod = floor(aux.y * .1 + .01); let kf = aux.y - lod * 10.; let kind = floor(kf); let d = lodDist(ia, ib);
   var q = p - n * ((kf - kind) * ss(70., 95., d));
   if (lod > 1.5 && lod < 2.5 && kind > 2.5) { let gw = ss(225., 250., d); q = vec3f(q.x * gw, q.y, q.z * gw); }
-  var wp = rotY(q * (ia.w * lodKeep(lod, d)), ib.x) + ia.xyz;
-  let w = windAt(ia.xyz) * (1. + .3 * sin(g.cam.w * 2.1 + ib.y * 40.));
-  wp += vec3f(w.x, 0., w.y) * aux.x;
-  o.cp = g.vp * vec4f(wp, 1.); o.wp = wp; o.n = rotY(n, ib.x); o.lp = p * ia.w + ib.y * 7.; o.k = vec4f(kind, ib.z, ib.y, aux.x);
+  var wp: vec3f; var yaw = ib.x; var swy = aux.x;
+  if (kind > 4.5) { // an animal
+    let t = g.cam.w; let part = i32(aux.x); let fr = aux.x - f32(part);
+    // wanders back and forth along a short line, pausing at each end and turning round while paused
+    var rate = .16; var len = 3.2; var hop = 0.; var hopLen = 1.; var leg = .2;
+    if (ib.w > 2.5) { rate = .45; len = 1.7; hop = .1; hopLen = .5; leg = .03; } else if (ib.w > 1.5) { rate = .7; len = 1.3; hop = .04; hopLen = .32; leg = .025; }
+    let u = t * rate + ib.y * 40.;
+    let s0 = clamp(sin(u) * 1.7, -1., 1.);
+    let mv = sat(abs(clamp(sin(u + .02) * 1.7, -1., 1.) - s0) * 60.); // 0 resting, 1 moving
+    let trav = s0 * len;
+    yaw += ss(-.25, .25, -cos(u)) * 3.14159;
+    let ph = trav * 3.4;
+    if (part == 2) { q.x += sin(ph) * leg * fr * mv; q.y += max(cos(ph), 0.) * leg * .25 * fr * mv; }
+    else if (part == 3) { q.x -= sin(ph) * leg * fr * mv; q.y += max(-cos(ph), 0.) * leg * .25 * fr * mv; }
+    else if (part == 1) { q.y += (sin(t * 1.1 + ib.y * 9.) * .012 + sin(ph * 2.) * .012 * mv) * fr; }
+    else if (part == 4) { q.z += sin(t * 7. + ib.y * 30.) * .035 * fr * (1. - mv) * ss(.2, .9, sin(t * .7 + ib.y * 50.)); q.x -= .04 * fr * mv; }
+    else if (part == 5) { q.z += ss(.8, 1., sin(t * 1.3 + ib.y * 20.)) * sin(t * 14.) * .012 * fr; }
+    q.y *= 1. + .012 * sin(t * 2.2 + ib.y * 6.);
+    let hy = abs(sin(trav / hopLen * 3.14159)) * hop * mv;
+    wp = rotY(q * ia.w, yaw) + ia.xyz + vec3f(cos(ib.x) * trav, ib.z * trav + hy, -sin(ib.x) * trav);
+    swy = 0.;
+  } else {
+    wp = rotY(q * (ia.w * lodKeep(lod, d)), ib.x) + ia.xyz;
+    let w = windAt(ia.xyz) * (1. + .3 * sin(g.cam.w * 2.1 + ib.y * 40.));
+    wp += vec3f(w.x, 0., w.y) * aux.x;
+  }
+  o.cp = g.vp * vec4f(wp, 1.); o.wp = wp; o.n = rotY(n, yaw); o.lp = p * ia.w + ib.y * 7.; o.k = vec4f(kind, ib.z, ib.y, swy);
   return o;
 }
 @fragment fn fsS(i: SO) -> @location(0) vec4f {
@@ -732,11 +807,14 @@ struct SO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
     let s = vn(lp.xz * 1.1) * .6 + vn(lp.xy * 1.3 + 3.) * .4;
     alb = pal(i.k.y + (s - .5) * .12) * (.35 + .7 * s); tr = .3;
     n = normalize(n + vec3f(vn(lp.yz * 1.2) - .5, .15, vn(lp.xy * 1.2 + 7.) - .5) * .8);
-  } else { // distant conifer
+  } else if (kind == 4) { // distant conifer
     let s = vn(vec2f(lp.x + lp.z, lp.y * 3.));
     alb = vec3f(.02, .046, .024) * (.45 + s); n = normalize(n + vec3f(0., .6, 0.));
+  } else { // animal fur: 5 bear, 6 squirrel, 7 rabbit, 8 pale muzzle / belly / tail, 9 eyes and nose
+    var fur = array<vec3f, 5>(vec3f(.075, .046, .028), vec3f(.30, .125, .04), vec3f(.26, .2, .145), vec3f(.52, .46, .37), vec3f(.012, .011, .012));
+    alb = fur[clamp(kind - 5, 0, 4)] * mix(1., .75 + .5 * vn(lp.xy * 55. + lp.z * 37.), det * f32(kind < 9));
   }
-  let sh = shadow9(i.wp + n * select(0., .6, kind >= 3), n, mix(farShade(i.wp.z), 1., sat(i.k.w * 3.)));
+  let sh = shadow9(i.wp + n * select(0., .6, kind == 3 || kind == 4), n, mix(farShade(i.wp.z), 1., sat(i.k.w * 3.)));
   let V = normalize(i.wp - g.cam.xyz); let back = sat(dot(V, g.sun.xyz));
   var c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * mix(.6, 1., sat(i.k.w * 3. + .3 - b.x * .3)) + lamp(i.wp, n, .25));
   c += alb * vec3f(1.3, 1.2, .4) * g.sunC.rgb * (tr * sh * (.15 + .5 * back * back));
@@ -1294,6 +1372,7 @@ for (let v = 0; v < TREEV; v++) {
   bar(0.1 + 0.03 * v); await tick();
 }
 const ROCKS = [0, 1, 2].map((k) => addS(buildRock(900 + k * 13).S));
+ROCKS.push(addS(buildBear().S), addS(buildSquirrel().S), addS(buildRabbit().S)); // animals ride along with the rocks
 const UGM = [addC(buildFern(11).C), addC(buildBush(12).C), addC(buildFlowers(13, false).C), addC(buildFlowers(14, true).C)];
 const vbS = bufOf(new Float32Array(SV), BU.VERTEX), ibS = bufOf(new Uint32Array(SI), BU.INDEX);
 const vbC = bufOf(new Float32Array(CV), BU.VERTEX), ibC = bufOf(new Uint32Array(CI), BU.INDEX);
@@ -1309,7 +1388,7 @@ const vbCrit = bufOf(seeds(NCRIT, (k) => (k < NBIRD ? 0 : k < NBIRD + NBFLY ? 1 
 // ---------------------------------------------------------------- chunk ring
 const VU = BU.VERTEX | BU.COPY_DST;
 const chunks = Array.from({ length: NCH }, () => ({
-  ci: -1e9, ready: false, stage: 0, xc: 0, x0: 0, x1: 0, ty0: 0, ty1: 0, gn: 0, tg: new Int32Array(60), td: new Float32Array(NTREE), rg: new Int32Array(6), ug: new Int32Array(8),
+  ci: -1e9, ready: false, stage: 0, xc: 0, x0: 0, x1: 0, ty0: 0, ty1: 0, gn: 0, tg: new Int32Array(60), td: new Float32Array(NTREE), rg: new Int32Array(12), ug: new Int32Array(8),
   vbT: buf(TVB.byteLength, VU), vbI: buf(NTREE * 32, VU), vbR: buf(NROCK * 32, VU), vbU: buf(NUG * 32, VU), vbG: buf(NGRASS * 16, VU),
 }));
 // builds one stage of chunk c per call (terrain, then trees / rocks / undergrowth, then grass)

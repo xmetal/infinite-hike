@@ -108,6 +108,7 @@ for (let v = 0; v < TREEV; v++) {
   bar(0.1 + 0.03 * v); await tick();
 }
 const ROCKS = [0, 1, 2].map((k) => addS(buildRock(900 + k * 13).S));
+ROCKS.push(addS(buildBear().S), addS(buildSquirrel().S), addS(buildRabbit().S)); // animals ride along with the rocks
 const UGM = [addC(buildFern(11).C), addC(buildBush(12).C), addC(buildFlowers(13, false).C), addC(buildFlowers(14, true).C)];
 const vbS = bufOf(new Float32Array(SV), BU.VERTEX), ibS = bufOf(new Uint32Array(SI), BU.INDEX);
 const vbC = bufOf(new Float32Array(CV), BU.VERTEX), ibC = bufOf(new Uint32Array(CI), BU.INDEX);
@@ -123,7 +124,7 @@ const vbCrit = bufOf(seeds(NCRIT, (k) => (k < NBIRD ? 0 : k < NBIRD + NBFLY ? 1 
 // ---------------------------------------------------------------- chunk ring
 const VU = BU.VERTEX | BU.COPY_DST;
 const chunks = Array.from({ length: NCH }, () => ({
-  ci: -1e9, ready: false, stage: 0, xc: 0, x0: 0, x1: 0, ty0: 0, ty1: 0, gn: 0, tg: new Int32Array(60), td: new Float32Array(NTREE), rg: new Int32Array(6), ug: new Int32Array(8),
+  ci: -1e9, ready: false, stage: 0, xc: 0, x0: 0, x1: 0, ty0: 0, ty1: 0, gn: 0, tg: new Int32Array(60), td: new Float32Array(NTREE), rg: new Int32Array(12), ug: new Int32Array(8),
   vbT: buf(TVB.byteLength, VU), vbI: buf(NTREE * 32, VU), vbR: buf(NROCK * 32, VU), vbU: buf(NUG * 32, VU), vbG: buf(NGRASS * 16, VU),
 }));
 // builds one stage of chunk c per call (terrain, then trees / rocks / undergrowth, then grass)

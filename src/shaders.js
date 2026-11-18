@@ -185,10 +185,33 @@ struct SO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
   let lod = floor(aux.y * .1 + .01); let kf = aux.y - lod * 10.; let kind = floor(kf); let d = lodDist(ia, ib);
   var q = p - n * ((kf - kind) * ss(70., 95., d));
   if (lod > 1.5 && lod < 2.5 && kind > 2.5) { let gw = ss(225., 250., d); q = vec3f(q.x * gw, q.y, q.z * gw); }
-  var wp = rotY(q * (ia.w * lodKeep(lod, d)), ib.x) + ia.xyz;
-  let w = windAt(ia.xyz) * (1. + .3 * sin(g.cam.w * 2.1 + ib.y * 40.));
-  wp += vec3f(w.x, 0., w.y) * aux.x;
-  o.cp = g.vp * vec4f(wp, 1.); o.wp = wp; o.n = rotY(n, ib.x); o.lp = p * ia.w + ib.y * 7.; o.k = vec4f(kind, ib.z, ib.y, aux.x);
+  var wp: vec3f; var yaw = ib.x; var swy = aux.x;
+  if (kind > 4.5) { // an animal
+    let t = g.cam.w; let part = i32(aux.x); let fr = aux.x - f32(part);
+    // wanders back and forth along a short line, pausing at each end and turning round while paused
+    var rate = .16; var len = 3.2; var hop = 0.; var hopLen = 1.; var leg = .2;
+    if (ib.w > 2.5) { rate = .45; len = 1.7; hop = .1; hopLen = .5; leg = .03; } else if (ib.w > 1.5) { rate = .7; len = 1.3; hop = .04; hopLen = .32; leg = .025; }
+    let u = t * rate + ib.y * 40.;
+    let s0 = clamp(sin(u) * 1.7, -1., 1.);
+    let mv = sat(abs(clamp(sin(u + .02) * 1.7, -1., 1.) - s0) * 60.); // 0 resting, 1 moving
+    let trav = s0 * len;
+    yaw += ss(-.25, .25, -cos(u)) * 3.14159;
+    let ph = trav * 3.4;
+    if (part == 2) { q.x += sin(ph) * leg * fr * mv; q.y += max(cos(ph), 0.) * leg * .25 * fr * mv; }
+    else if (part == 3) { q.x -= sin(ph) * leg * fr * mv; q.y += max(-cos(ph), 0.) * leg * .25 * fr * mv; }
+    else if (part == 1) { q.y += (sin(t * 1.1 + ib.y * 9.) * .012 + sin(ph * 2.) * .012 * mv) * fr; }
+    else if (part == 4) { q.z += sin(t * 7. + ib.y * 30.) * .035 * fr * (1. - mv) * ss(.2, .9, sin(t * .7 + ib.y * 50.)); q.x -= .04 * fr * mv; }
+    else if (part == 5) { q.z += ss(.8, 1., sin(t * 1.3 + ib.y * 20.)) * sin(t * 14.) * .012 * fr; }
+    q.y *= 1. + .012 * sin(t * 2.2 + ib.y * 6.);
+    let hy = abs(sin(trav / hopLen * 3.14159)) * hop * mv;
+    wp = rotY(q * ia.w, yaw) + ia.xyz + vec3f(cos(ib.x) * trav, ib.z * trav + hy, -sin(ib.x) * trav);
+    swy = 0.;
+  } else {
+    wp = rotY(q * (ia.w * lodKeep(lod, d)), ib.x) + ia.xyz;
+    let w = windAt(ia.xyz) * (1. + .3 * sin(g.cam.w * 2.1 + ib.y * 40.));
+    wp += vec3f(w.x, 0., w.y) * aux.x;
+  }
+  o.cp = g.vp * vec4f(wp, 1.); o.wp = wp; o.n = rotY(n, yaw); o.lp = p * ia.w + ib.y * 7.; o.k = vec4f(kind, ib.z, ib.y, swy);
   return o;
 }
 @fragment fn fsS(i: SO) -> @location(0) vec4f {
@@ -215,11 +238,14 @@ struct SO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) n
     let s = vn(lp.xz * 1.1) * .6 + vn(lp.xy * 1.3 + 3.) * .4;
     alb = pal(i.k.y + (s - .5) * .12) * (.35 + .7 * s); tr = .3;
     n = normalize(n + vec3f(vn(lp.yz * 1.2) - .5, .15, vn(lp.xy * 1.2 + 7.) - .5) * .8);
-  } else { // distant conifer
+  } else if (kind == 4) { // distant conifer
     let s = vn(vec2f(lp.x + lp.z, lp.y * 3.));
     alb = vec3f(.02, .046, .024) * (.45 + s); n = normalize(n + vec3f(0., .6, 0.));
+  } else { // animal fur: 5 bear, 6 squirrel, 7 rabbit, 8 pale muzzle / belly / tail, 9 eyes and nose
+    var fur = array<vec3f, 5>(vec3f(.075, .046, .028), vec3f(.30, .125, .04), vec3f(.26, .2, .145), vec3f(.52, .46, .37), vec3f(.012, .011, .012));
+    alb = fur[clamp(kind - 5, 0, 4)] * mix(1., .75 + .5 * vn(lp.xy * 55. + lp.z * 37.), det * f32(kind < 9));
   }
-  let sh = shadow9(i.wp + n * select(0., .6, kind >= 3), n, mix(farShade(i.wp.z), 1., sat(i.k.w * 3.)));
+  let sh = shadow9(i.wp + n * select(0., .6, kind == 3 || kind == 4), n, mix(farShade(i.wp.z), 1., sat(i.k.w * 3.)));
   let V = normalize(i.wp - g.cam.xyz); let back = sat(dot(V, g.sun.xyz));
   var c = alb * (g.sunC.rgb * sat(dot(n, g.sun.xyz)) * sh + amb(n) * mix(.6, 1., sat(i.k.w * 3. + .3 - b.x * .3)) + lamp(i.wp, n, .25));
   c += alb * vec3f(1.3, 1.2, .4) * g.sunC.rgb * (tr * sh * (.15 + .5 * back * back));
