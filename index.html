@@ -1717,10 +1717,17 @@ const BNAME = ['Forest', 'Meadow', 'Alpine'];
 let hudT = 0, hudS = '', fps = 60, statsOn = qs.has('stats');
 const FIXDT = +(qs.get('dt') || 0); // test hook: fixed time step
 const FRMAX = +(qs.get('frames') || 0); let frameN = 0; // test hook: stop after N frames
+// The loop sleeps while the menu is up: nothing is drawn, so the GPU idles and the last frame stays on screen.
+// wake(n) draws n more frames (after a resize, a jump to a new place, or on leaving the menu) and then, if the menu
+// is still up, the loop stops again.
+let rafId = 0, still = 2;
+function wake(n = 2) { still = max(still, n); if (!rafId) { last = performance.now(); rafId = requestAnimationFrame(frame); } }
 function frame(now) {
-  if (!FRMAX || ++frameN < FRMAX) requestAnimationFrame(frame); else window.__done = true;
+  rafId = 0;
+  if (FRMAX && ++frameN >= FRMAX) { window.__done = true; return; }
+  if (!paused || --still > 0) rafId = requestAnimationFrame(frame);
   const dt = FIXDT || min((now - last) / 1000, 0.1); last = now;
-  if (!paused || !started) T += dt;
+  if (!paused) T += dt;
   resize();
   camera(paused ? 0 : dt);
   stream(Z);
@@ -1744,7 +1751,7 @@ const setKey = (code, v) => {
   else return false;
   return true;
 };
-function openMenu(open) { paused = open; audioQuiet(open); $('menu').classList.toggle('on', open); canvas.classList.toggle('blur', open); if (open) { keys.f = keys.b = keys.run = keys.l = keys.r = 0; } $('go').textContent = started ? 'Keep walking' : 'Start hiking'; }
+function openMenu(open) { paused = open; wake(); audioQuiet(open); $('menu').classList.toggle('on', open); canvas.classList.toggle('blur', open); if (open) { keys.f = keys.b = keys.run = keys.l = keys.r = 0; } $('go').textContent = started ? 'Keep walking' : 'Start hiking'; }
 function start() { started = true; openMenu(false); audioStart(); }
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
@@ -1787,6 +1794,7 @@ document.querySelectorAll('.q:not(.sp)').forEach((b, i) => {
   b.addEventListener('click', () => { if (i === qi) return; try { localStorage.setItem('hikeQ', i); } catch (e) { } const u = new URL(location.href); u.searchParams.delete('q'); u.searchParams.set('z', Z.toFixed(0)); location.href = u.href; });
 });
 document.addEventListener('visibilitychange', () => { last = performance.now(); });
+addEventListener('resize', () => wake());
 
 // ---------------------------------------------------------------- build the ring around the hiker (at load, and after a jump)
 async function buildRing() {
@@ -1808,7 +1816,7 @@ async function jumpTo(kind) {
   for (const c of chunks) { c.ci = -1e9; c.ready = false; } gen = null;
   camera(0); BC[0] = CX; BC[1] = CY; BC[2] = CZ + 90;
   await buildRing();
-  bar(1); $('load').classList.add('off'); jumping = false;
+  bar(1); $('load').classList.add('off'); jumping = false; wake(3);
 }
 document.querySelectorAll('.sp').forEach((b, i) => b.addEventListener('click', () => jumpTo(i)));
 resize(); camera(0); BC[0] = CX; BC[1] = CY; BC[2] = CZ + 90;
@@ -1819,7 +1827,6 @@ uniforms(0.016); render();
 await DQ.onSubmittedWorkDone();
 $('load').classList.add('off'); canvas.classList.add('blur');
 openMenu(true);
-requestAnimationFrame(frame);
 if (qs.has('go')) { start(); if (qs.has('auto')) auto = true; }
 if (statsOn) $('stats').style.display = 'block';
 window.__ready = true;
